@@ -77,6 +77,16 @@ export const saveUserProfile = async (uid: string, data: Partial<UserProgress>) 
   await updateDoc(userRef, data);
 };
 
+export const refreshUserData = async (uid: string): Promise<UserProgress | null> => {
+  if (!uid) return null;
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    return userSnap.data() as UserProgress;
+  }
+  return null;
+};
+
 export const markDayCompleteInDb = async (uid: string, currentData: UserProgress, dayId: number, score: number) => {
   if (!uid) return { user: currentData, passed: false };
 

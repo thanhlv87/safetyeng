@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Tab, UserProgress, DailyLesson } from './types';
 import { DICTIONARY_TERMS } from './services/curriculum';
-import { subscribeToAuth, loginWithGoogle, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson } from './services/storage';
+import { subscribeToAuth, loginWithGoogle, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData } from './services/storage';
 import { generateCertificate } from './services/certificate';
 import { auth } from './services/firebase';
 
@@ -131,12 +131,23 @@ const ProfileSetup: React.FC<{ user: UserProgress; onComplete: () => void }> = (
     jobTitle: user.jobTitle || '',
     company: user.company || ''
   });
+  const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if(auth.currentUser) {
-        await saveUserProfile(auth.currentUser.uid, formData);
-        onComplete();
+        setSaving(true);
+        try {
+          await saveUserProfile(auth.currentUser.uid, formData);
+          // Force a small delay to ensure Firestore updates propagate
+          await new Promise(resolve => setTimeout(resolve, 500));
+          onComplete();
+        } catch (error) {
+          console.error("Failed to save profile", error);
+          alert("Failed to save profile. Please try again.");
+        } finally {
+          setSaving(false);
+        }
     }
   };
 
@@ -168,7 +179,9 @@ const ProfileSetup: React.FC<{ user: UserProgress; onComplete: () => void }> = (
                  onChange={e => setFormData({...formData, company: e.target.value})}
                />
             </div>
-            <Button type="submit" className="w-full justify-center mt-4">Save & Continue</Button>
+            <Button type="submit" className="w-full justify-center mt-4" disabled={saving}>
+              {saving ? <><i className="fas fa-spinner fa-spin mr-2"></i> Saving...</> : 'Save & Continue'}
+            </Button>
          </form>
       </Card>
     </div>
@@ -648,7 +661,21 @@ const App: React.FC = () => {
 
   // Force profile setup if missing essential info for certificate
   if (!user.jobTitle || !user.company) {
-    return <ProfileSetup user={user} onComplete={() => {/* State updates via auth listener */}} />;
+    return <ProfileSetup user={user} onComplete={async () => {
+      // Refresh user data from Firestore
+      if (auth.currentUser) {
+        const updatedUser = await refreshUserData(auth.currentUser.uid);
+        if (updatedUser) {
+          setUser({
+            ...updatedUser,
+            isLoggedIn: true,
+            name: auth.currentUser.displayName || updatedUser.name,
+            email: auth.currentUser.email || updatedUser.email,
+            photoURL: auth.currentUser.photoURL || undefined
+          });
+        }
+      }
+    }} />;
   }
 
   return (
