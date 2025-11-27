@@ -97,14 +97,25 @@ Generate a JSON response with this EXACT structure:
   ]
 }
 
-Requirements:
+CRITICAL Requirements:
 - Vocabulary must be practical and commonly used in safety contexts
 - IPA pronunciation guides must be accurate
 - Dialogue should be natural and workplace-appropriate
 - Scenario should present a realistic safety situation
-- Quiz questions should test understanding, not just memorization
+- Quiz questions MUST be UNIQUE and DIFFERENT from each other
+- Each question must test a DIFFERENT aspect of the topic
+- Vary the correctAnswer index (use 0, 1, 2, 3 randomly - NOT always 0!)
+- Questions should test: vocabulary, procedures, identification, safety rules, emergency response
 - All content must be beginner-friendly (A1-A2 English level)
 - Focus on PRACTICAL safety knowledge workers need
+- AVOID repetitive question patterns
+
+Example of GOOD question variety:
+Q1: Vocabulary test - "What does 'hazard' mean?"
+Q2: Procedure test - "What should you do first when you see a fire?"
+Q3: Identification - "Which sign means 'danger'?"
+Q4: Safety rule - "When must you wear a hard hat?"
+Q5: Emergency - "Who should you call in an emergency?"
 
 Return ONLY valid JSON, no markdown formatting.`;
 
@@ -116,6 +127,32 @@ Return ONLY valid JSON, no markdown formatting.`;
   const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
   const aiData = JSON.parse(cleanText);
+
+  // Validate quiz questions are unique
+  const questions = aiData.quiz.map((q: any) => q.question);
+  const uniqueQuestions = new Set(questions);
+  if (uniqueQuestions.size !== questions.length) {
+    console.warn(`⚠️ Duplicate questions detected in Day ${day}. Regenerating...`);
+    // If duplicates found, try one more time
+    const retryResult = await model.generateContent(prompt + "\n\nIMPORTANT: Previous attempt had duplicate questions. Generate COMPLETELY DIFFERENT questions this time!");
+    const retryText = retryResult.response.text().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const retryData = JSON.parse(retryText);
+    return {
+      id: day,
+      topic: topic,
+      isReviewDay: false,
+      vocab: retryData.vocab,
+      dialogue: retryData.dialogue,
+      scenario: {
+        ...retryData.scenario,
+        imgPlaceholder: `https://raw.githubusercontent.com/thanhlv87/pic/refs/heads/main/safety-day${day}.jpg`
+      },
+      quiz: retryData.quiz.map((q: any, idx: number) => ({
+        ...q,
+        id: idx
+      }))
+    };
+  }
 
   return {
     id: day,
@@ -183,12 +220,20 @@ Generate a JSON response with:
   ]
 }
 
-Requirements:
+CRITICAL Requirements:
 - 10 questions total (review tests are longer)
 - Questions must cover ALL topics from the previous 4 days
-- Mix question types: vocabulary, procedures, scenario-based
+- Each question must be COMPLETELY DIFFERENT - no repetition!
+- Mix question types: vocabulary, procedures, scenario-based, identification, safety rules
+- Vary the correctAnswer index (use 0, 1, 2, 3 randomly - NOT always 0!)
 - Make it challenging but fair
-- Correct answers should vary across questions
+- Test DIFFERENT safety topics in each question
+- Questions should progressively test different aspects:
+  * Question 1-2: Vocabulary from Day ${startDay}
+  * Question 3-4: Procedures from Day ${startDay + 1}
+  * Question 5-6: Safety rules from Day ${startDay + 2}
+  * Question 7-8: Equipment identification from Day ${startDay + 3}
+  * Question 9-10: Mixed scenario-based questions
 
 Return ONLY valid JSON, no markdown.`;
 
@@ -198,6 +243,32 @@ Return ONLY valid JSON, no markdown.`;
 
   const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   const aiData = JSON.parse(cleanText);
+
+  // Validate quiz questions are unique
+  const questions = aiData.quiz.map((q: any) => q.question);
+  const uniqueQuestions = new Set(questions);
+  if (uniqueQuestions.size !== questions.length) {
+    console.warn(`⚠️ Duplicate questions detected in Checkpoint ${day / 5}. Regenerating...`);
+    // If duplicates found, try one more time
+    const retryResult = await model.generateContent(prompt + "\n\nIMPORTANT: Previous attempt had duplicate questions. Generate 10 COMPLETELY DIFFERENT questions this time!");
+    const retryText = retryResult.response.text().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const retryData = JSON.parse(retryText);
+    return {
+      id: day,
+      topic: `REVIEW: ${topic}`,
+      isReviewDay: true,
+      vocab: retryData.vocab,
+      dialogue: retryData.dialogue,
+      scenario: {
+        ...retryData.scenario,
+        imgPlaceholder: `https://raw.githubusercontent.com/thanhlv87/pic/refs/heads/main/checkpoint${day / 5}.jpg`
+      },
+      quiz: retryData.quiz.map((q: any, idx: number) => ({
+        ...q,
+        id: idx
+      }))
+    };
+  }
 
   return {
     id: day,
