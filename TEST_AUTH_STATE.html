@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Auth Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { padding: 10px 20px; margin: 10px 0; cursor: pointer; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Firebase Authentication Test</h1>
+    <div id="status"></div>
+    <button onclick="testAuth()">Test Auth State</button>
+    <button onclick="checkEnv()">Check Environment Variables</button>
+    <button onclick="signIn()">Sign In with Google</button>
+    <button onclick="signOut()">Sign Out</button>
+    <pre id="output"></pre>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut as firebaseSignOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCyaykbJsyKg7G1tWA8CqIa6_auQlSNG18",
+            authDomain: "safety-eng.firebaseapp.com",
+            projectId: "safety-eng",
+            storageBucket: "safety-eng.firebasestorage.app",
+            messagingSenderId: "578945090646",
+            appId: "1:578945090646:web:d38806477c189921eae7f7",
+            measurementId: "G-R8PQVW0TQT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        const log = (message, type = 'info') => {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+        };
+
+        window.testAuth = () => {
+            log('Testing auth state...', 'info');
+            const user = auth.currentUser;
+            if (user) {
+                log(`✅ User is signed in: ${user.email}`, 'success');
+                log(`UID: ${user.uid}`, 'info');
+                log(`Display Name: ${user.displayName}`, 'info');
+            } else {
+                log('❌ No user is signed in', 'error');
+            }
+        };
+
+        window.checkEnv = () => {
+            log('Checking Firebase config...', 'info');
+            log(`API Key: ${firebaseConfig.apiKey.substring(0, 10)}...`, 'info');
+            log(`Auth Domain: ${firebaseConfig.authDomain}`, 'info');
+            log(`Project ID: ${firebaseConfig.projectId}`, 'info');
+        };
+
+        window.signIn = async () => {
+            log('Initiating sign-in with redirect...', 'info');
+            try {
+                await signInWithRedirect(auth, provider);
+            } catch (error) {
+                log(`❌ Sign-in error: ${error.message}`, 'error');
+            }
+        };
+
+        window.signOut = async () => {
+            log('Signing out...', 'info');
+            try {
+                await firebaseSignOut(auth);
+                log('✅ Signed out successfully', 'success');
+            } catch (error) {
+                log(`❌ Sign-out error: ${error.message}`, 'error');
+            }
+        };
+
+        // Check redirect result on load
+        (async () => {
+            log('Checking for redirect result...', 'info');
+            try {
+                const result = await getRedirectResult(auth);
+                if (result) {
+                    log(`✅ Redirect result found: ${result.user.email}`, 'success');
+                } else {
+                    log('No redirect result (normal page load)', 'info');
+                }
+            } catch (error) {
+                log(`❌ Redirect error: ${error.code} - ${error.message}`, 'error');
+            }
+        })();
+
+        // Listen to auth state changes
+        onAuthStateChanged(auth, async (user) => {
+            const status = document.getElementById('status');
+            if (user) {
+                log(`🔄 Auth state changed: Logged in as ${user.email}`, 'success');
+                status.innerHTML = `<div class="success">✅ Logged in as: ${user.email}</div>`;
+
+                // Try to fetch user document from Firestore
+                try {
+                    const userRef = doc(db, "users", user.uid);
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        log('✅ User document exists in Firestore', 'success');
+                        log(`Data: ${JSON.stringify(userSnap.data())}`, 'info');
+                    } else {
+                        log('⚠️ User document does NOT exist in Firestore', 'error');
+                    }
+                } catch (error) {
+                    log(`❌ Firestore error: ${error.code} - ${error.message}`, 'error');
+                }
+            } else {
+                log('🔄 Auth state changed: Logged out', 'error');
+                status.innerHTML = '<div class="error">❌ Not logged in</div>';
+            }
+        });
+
+        log('✅ Test page loaded', 'success');
+    </script>
+</body>
+</html>
