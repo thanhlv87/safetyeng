@@ -169,18 +169,22 @@ export const markDayCompleteInDb = async (uid: string, currentData: UserProgress
 // This satisfies the requirement to have lessons in Firestore.
 // If a lesson is missing in DB, we generate it locally and save it ("Seed") automatically.
 
-export const fetchLesson = async (dayId: number): Promise<DailyLesson> => {
+export const fetchLesson = async (dayId: number, forceRegenerate = false): Promise<DailyLesson> => {
   const lessonRef = doc(db, "lessons", `day_${dayId}`);
 
   try {
     const lessonSnap = await getDoc(lessonRef);
-    if (lessonSnap.exists()) {
+
+    // Check if we should use cached version
+    if (lessonSnap.exists() && !forceRegenerate) {
+       console.log(`📚 Loading cached lesson ${dayId} from Firestore`);
        return lessonSnap.data() as DailyLesson;
     } else {
        // Generate lesson with AI and cache it to Firestore
        console.log(`🤖 Generating lesson ${dayId} with AI...`);
        const lessonData = await generateLessonWithAI(dayId);
        await setDoc(lessonRef, lessonData);
+       console.log(`✅ Lesson ${dayId} generated and cached to Firestore`);
        return lessonData;
     }
   } catch (err) {

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafetyEng Admin - Regenerate Lessons</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0B3D91;
+            border-bottom: 3px solid #FDC400;
+            padding-bottom: 10px;
+        }
+        button {
+            padding: 12px 24px;
+            margin: 10px 5px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .btn-primary {
+            background: #0B3D91;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #083069;
+        }
+        .btn-warning {
+            background: #FDC400;
+            color: #333;
+        }
+        .btn-warning:hover {
+            background: #e0ae00;
+        }
+        #output {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .input-group {
+            margin: 15px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 SafetyEng Admin Panel</h1>
+
+        <div class="warning">
+            <strong>⚠️ Warning:</strong> These operations will modify your Firestore database.
+            Use with caution!
+        </div>
+
+        <div class="input-group">
+            <label>Regenerate Single Day:</label>
+            <input type="number" id="dayInput" min="1" max="60" value="1" />
+            <button class="btn-warning" onclick="regenerateSingleDay()">
+                🔄 Regenerate This Day
+            </button>
+        </div>
+
+        <hr>
+
+        <button class="btn-danger" onclick="deleteAllLessons()">
+            🗑️ Delete All Lessons
+        </button>
+
+        <button class="btn-primary" onclick="regenerateAll()">
+            🤖 Regenerate All 60 Lessons
+        </button>
+
+        <button class="btn-danger" onclick="deleteAndRegenerateAll()">
+            ⚡ Delete & Regenerate All
+        </button>
+
+        <div id="output"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, getDocs, deleteDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCyaykbJsyKg7G1tWA8CqIa6_auQlSNG18",
+            authDomain: "safety-eng.firebaseapp.com",
+            projectId: "safety-eng",
+            storageBucket: "safety-eng.firebasestorage.app",
+            messagingSenderId: "578945090646",
+            appId: "1:578945090646:web:d38806477c189921eae7f7",
+            measurementId: "G-R8PQVW0TQT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const log = (message) => {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        };
+
+        window.deleteAllLessons = async () => {
+            if (!confirm('Are you sure you want to DELETE all lessons? This cannot be undone!')) {
+                return;
+            }
+
+            log('🗑️ Starting deletion...');
+            const lessonsRef = collection(db, 'lessons');
+            const snapshot = await getDocs(lessonsRef);
+
+            let count = 0;
+            for (const docSnapshot of snapshot.docs) {
+                await deleteDoc(doc(db, 'lessons', docSnapshot.id));
+                count++;
+                log(`Deleted: ${docSnapshot.id}`);
+            }
+
+            log(`✅ Deleted ${count} lessons`);
+        };
+
+        window.regenerateSingleDay = async () => {
+            const dayId = parseInt(document.getElementById('dayInput').value);
+            if (dayId < 1 || dayId > 60) {
+                alert('Please enter a day between 1 and 60');
+                return;
+            }
+
+            if (!confirm(`Regenerate Day ${dayId}?`)) {
+                return;
+            }
+
+            log(`🤖 Regenerating Day ${dayId}...`);
+
+            try {
+                const response = await fetch(`/api/generate-lesson?day=${dayId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                log(`✅ Day ${dayId} regenerated successfully`);
+            } catch (error) {
+                log(`❌ Failed: ${error.message}`);
+                log('💡 Tip: Make sure your dev server is running and the API endpoint exists');
+            }
+        };
+
+        window.regenerateAll = async () => {
+            if (!confirm('Regenerate all 60 lessons? This will take ~5-10 minutes.')) {
+                return;
+            }
+
+            log('🤖 Starting regeneration of all lessons...');
+            log('⏱️ This will take approximately 5-10 minutes...');
+
+            for (let day = 1; day <= 60; day++) {
+                try {
+                    log(`Generating Day ${day}/60...`);
+                    const response = await fetch(`/api/generate-lesson?day=${day}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    log(`✅ Day ${day} complete`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } catch (error) {
+                    log(`❌ Day ${day} failed: ${error.message}`);
+                }
+            }
+
+            log('🎉 All lessons regenerated!');
+        };
+
+        window.deleteAndRegenerateAll = async () => {
+            if (!confirm('DELETE and REGENERATE all 60 lessons? This will take ~5-10 minutes.')) {
+                return;
+            }
+
+            await window.deleteAllLessons();
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await window.regenerateAll();
+        };
+
+        log('✅ Admin panel ready');
+        log('💡 Select an action above to manage lessons');
+    </script>
+</body>
+</html>

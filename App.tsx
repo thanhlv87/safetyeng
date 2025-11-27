@@ -383,7 +383,16 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
-    fetchLesson(dayId).then(data => {
+
+    // Check if URL has ?regenerate=true to force regeneration
+    const urlParams = new URLSearchParams(window.location.search);
+    const forceRegenerate = urlParams.get('regenerate') === 'true';
+
+    if (forceRegenerate) {
+      console.log('🔄 Force regenerating lesson...');
+    }
+
+    fetchLesson(dayId, forceRegenerate).then(data => {
        if (isMounted) {
           setLesson(data);
           setLoading(false);
