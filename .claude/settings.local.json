@@ -5,7 +5,11 @@
       "Bash(npm install:*)",
       "Bash(cat:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Improve security and fix display issues\n\n- Move all Firebase API keys to environment variables (.env.local)\n- Add .env.example template for easy setup\n- Update .gitignore to prevent committing sensitive .env files\n- Fix Vite build configuration in vite.config.ts\n- Remove conflicting importmap from index.html\n- Add proper module script tag for Vite\n- Extract inline styles to index.css\n- Add TypeScript definitions for Vite env variables\n- Create vercel.json for Vercel deployment configuration\n- Update README with detailed local and Vercel deployment instructions\n\n🔒 Security improvements:\n- Firebase credentials now loaded from environment variables\n- API keys no longer hardcoded in source files\n\n🛠️ Build fixes:\n- Resolved Vite HTML inline-proxy errors\n- Simplified Vite configuration\n- Successful production build\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Improve security and fix display issues\n\n- Move all Firebase API keys to environment variables (.env.local)\n- Add .env.example template for easy setup\n- Update .gitignore to prevent committing sensitive .env files\n- Fix Vite build configuration in vite.config.ts\n- Remove conflicting importmap from index.html\n- Add proper module script tag for Vite\n- Extract inline styles to index.css\n- Add TypeScript definitions for Vite env variables\n- Create vercel.json for Vercel deployment configuration\n- Update README with detailed local and Vercel deployment instructions\n\n🔒 Security improvements:\n- Firebase credentials now loaded from environment variables\n- API keys no longer hardcoded in source files\n\n🛠️ Build fixes:\n- Resolved Vite HTML inline-proxy errors\n- Simplified Vite configuration\n- Successful production build\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)",
+      "Bash(git commit:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []
