@@ -638,15 +638,31 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Handle redirect result first (for Google Sign-In redirect)
-    handleRedirectResult();
+    let unsubscribe: (() => void) | undefined;
 
-    // Listen to Firebase Auth
-    const unsubscribe = subscribeToAuth((userData) => {
-      setUser(userData);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    const initAuth = async () => {
+      try {
+        // Process redirect result first (if redirected from Google)
+        console.log("Checking for redirect result...");
+        await handleRedirectResult();
+        console.log("Redirect result processed");
+      } catch (error) {
+        console.error("Error handling redirect:", error);
+      }
+
+      // Then listen to Firebase Auth state
+      unsubscribe = subscribeToAuth((userData) => {
+        console.log("Auth state changed:", userData ? "logged in" : "logged out");
+        setUser(userData);
+        setLoading(false);
+      });
+    };
+
+    initAuth();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   if (loading) {

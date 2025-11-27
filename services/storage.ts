@@ -68,13 +68,28 @@ export const loginWithGoogle = async () => {
 
 export const handleRedirectResult = async () => {
   try {
+    console.log("Getting redirect result...");
     const result = await getRedirectResult(auth);
+
     if (result) {
       // User successfully signed in via redirect
-      console.log("Signed in via redirect:", result.user);
+      console.log("✅ Signed in via redirect:", result.user.email);
+      return result;
+    } else {
+      console.log("No redirect result (normal page load)");
+      return null;
     }
-  } catch (error) {
-    console.error("Redirect result error", error);
+  } catch (error: any) {
+    console.error("❌ Redirect result error:", error.code, error.message);
+    // Show user-friendly error
+    if (error.code === 'auth/unauthorized-domain') {
+      alert('Domain not authorized. Please add your Vercel domain to Firebase authorized domains.');
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      // Ignore - user cancelled
+    } else {
+      alert('Sign in failed: ' + error.message);
+    }
+    throw error;
   }
 };
 
