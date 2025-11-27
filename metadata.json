@@ -1,0 +1,7 @@
+{
+  "name": "SafetySpeak - 30 Day Challenge",
+  "description": "A 30-day English learning challenge for Occupational Safety Engineers.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
