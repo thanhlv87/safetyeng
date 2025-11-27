@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Tab, UserProgress, DailyLesson } from './types';
 import { DICTIONARY_TERMS } from './services/curriculum';
-import { subscribeToAuth, loginWithGoogle, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData, handleRedirectResult } from './services/storage';
+import { subscribeToAuth, loginWithEmail, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData } from './services/storage';
 import { generateCertificate } from './services/certificate';
 import { auth } from './services/firebase';
 
@@ -106,21 +106,80 @@ const PronunciationTest: React.FC<{ targetPhrase: string }> = ({ targetPhrase })
 // --- Login / Profile View ---
 
 const LoginView: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await loginWithEmail(email, password);
+      // Auth state listener will handle the rest
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden text-center">
-        <div className="bg-safetyBlue p-6">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="bg-safetyBlue p-6 text-center">
           <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-safetyBlue font-bold text-3xl mx-auto mb-3">S</div>
           <h1 className="text-2xl font-bold text-white">SafetySpeak</h1>
           <p className="text-blue-100">60-Day English Challenge</p>
         </div>
-        
-        <div className="p-10 space-y-6">
-          <p className="text-gray-600">Login to track your progress and earn your certificate.</p>
-          <Button variant="google" className="w-full justify-center py-3 shadow-sm text-base" onClick={loginWithGoogle}>
-             <i className="fab fa-google text-red-500 text-xl"></i> Sign in with Google
+
+        <form onSubmit={handleLogin} className="p-10 space-y-6">
+          <p className="text-gray-600 text-center">Login to track your progress and earn your certificate.</p>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-safetyBlue focus:border-transparent"
+              placeholder="your-email@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-safetyBlue focus:border-transparent"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full justify-center py-3 text-base"
+            disabled={loading}
+          >
+            {loading ? <><i className="fas fa-spinner fa-spin mr-2"></i> Đang đăng nhập...</> : 'Đăng nhập'}
           </Button>
-        </div>
+
+          <p className="text-xs text-gray-500 text-center">
+            Liên hệ admin để được cấp tài khoản
+          </p>
+        </form>
       </div>
     </div>
   );
@@ -638,31 +697,14 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
+    // Listen to Firebase Auth state
+    const unsubscribe = subscribeToAuth((userData) => {
+      console.log("Auth state changed:", userData ? "logged in" : "logged out");
+      setUser(userData);
+      setLoading(false);
+    });
 
-    const initAuth = async () => {
-      try {
-        // Process redirect result first (if redirected from Google)
-        console.log("Checking for redirect result...");
-        await handleRedirectResult();
-        console.log("Redirect result processed");
-      } catch (error) {
-        console.error("Error handling redirect:", error);
-      }
-
-      // Then listen to Firebase Auth state
-      unsubscribe = subscribeToAuth((userData) => {
-        console.log("Auth state changed:", userData ? "logged in" : "logged out");
-        setUser(userData);
-        setLoading(false);
-      });
-    };
-
-    initAuth();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   if (loading) {

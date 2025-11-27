@@ -1,6 +1,6 @@
 import { UserProgress, DailyLesson } from '../types';
-import { auth, db, googleProvider } from './firebase';
-import { signInWithRedirect, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
+import { auth, db } from './firebase';
+import { signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { getLessonForDay as generateLessonLocally } from './curriculum';
 
@@ -56,40 +56,26 @@ export const subscribeToAuth = (callback: (user: UserProgress | null) => void) =
   });
 };
 
-export const loginWithGoogle = async () => {
+export const loginWithEmail = async (email: string, password: string) => {
   try {
-    // Use redirect instead of popup for better compatibility on production
-    await signInWithRedirect(auth, googleProvider);
-  } catch (error) {
-    console.error("Login failed", error);
-    alert("Login failed. Please check your connection.");
-  }
-};
-
-export const handleRedirectResult = async () => {
-  try {
-    console.log("Getting redirect result...");
-    const result = await getRedirectResult(auth);
-
-    if (result) {
-      // User successfully signed in via redirect
-      console.log("✅ Signed in via redirect:", result.user.email);
-      return result;
-    } else {
-      console.log("No redirect result (normal page load)");
-      return null;
-    }
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    console.log("✅ Signed in:", userCredential.user.email);
+    return userCredential.user;
   } catch (error: any) {
-    console.error("❌ Redirect result error:", error.code, error.message);
-    // Show user-friendly error
-    if (error.code === 'auth/unauthorized-domain') {
-      alert('Domain not authorized. Please add your Vercel domain to Firebase authorized domains.');
-    } else if (error.code === 'auth/popup-closed-by-user') {
-      // Ignore - user cancelled
+    console.error("❌ Login failed:", error.code, error.message);
+
+    // User-friendly error messages in Vietnamese
+    if (error.code === 'auth/user-not-found') {
+      throw new Error('Tài khoản không tồn tại');
+    } else if (error.code === 'auth/wrong-password') {
+      throw new Error('Mật khẩu không đúng');
+    } else if (error.code === 'auth/invalid-email') {
+      throw new Error('Email không hợp lệ');
+    } else if (error.code === 'auth/invalid-credential') {
+      throw new Error('Email hoặc mật khẩu không đúng');
     } else {
-      alert('Sign in failed: ' + error.message);
+      throw new Error('Đăng nhập thất bại: ' + error.message);
     }
-    throw error;
   }
 };
 
