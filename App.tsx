@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Tab, UserProgress, DailyLesson } from './types';
 import { DICTIONARY_TERMS } from './services/curriculum';
 import { subscribeToAuth, loginWithGoogle, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData, handleRedirectResult } from './services/storage';
