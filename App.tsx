@@ -395,7 +395,15 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
     return () => { isMounted = false; };
   }, [dayId]);
 
-  if (loading || !lesson) return <div className="p-10 text-center"><i className="fas fa-spinner fa-spin text-4xl text-safetyBlue"></i></div>;
+  if (loading || !lesson) {
+    return (
+      <div className="p-10 text-center">
+        <i className="fas fa-spinner fa-spin text-4xl text-safetyBlue mb-4"></i>
+        <p className="text-lg text-gray-600 font-medium">🤖 Generating your lesson with AI...</p>
+        <p className="text-sm text-gray-400 mt-2">This may take 10-20 seconds</p>
+      </div>
+    );
+  }
 
   const handleQuizSubmit = async () => {
     let correct = 0;

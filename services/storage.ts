@@ -3,6 +3,7 @@ import { auth, db } from './firebase';
 import { signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { getLessonForDay as generateLessonLocally } from './curriculum';
+import { generateLessonWithAI } from './gemini';
 
 // --- Default Data ---
 const INITIAL_USER: UserProgress = {
@@ -170,20 +171,20 @@ export const markDayCompleteInDb = async (uid: string, currentData: UserProgress
 
 export const fetchLesson = async (dayId: number): Promise<DailyLesson> => {
   const lessonRef = doc(db, "lessons", `day_${dayId}`);
-  
+
   try {
     const lessonSnap = await getDoc(lessonRef);
     if (lessonSnap.exists()) {
        return lessonSnap.data() as DailyLesson;
     } else {
-       // Seed the DB on demand
-       console.log(`Seeding lesson ${dayId} to Firestore...`);
-       const lessonData = generateLessonLocally(dayId);
+       // Generate lesson with AI and cache it to Firestore
+       console.log(`🤖 Generating lesson ${dayId} with AI...`);
+       const lessonData = await generateLessonWithAI(dayId);
        await setDoc(lessonRef, lessonData);
        return lessonData;
     }
   } catch (err) {
-    console.warn("Firestore fetch failed (offline?), falling back to local generation", err);
+    console.warn("AI generation failed, using fallback", err);
     return generateLessonLocally(dayId);
   }
 };
