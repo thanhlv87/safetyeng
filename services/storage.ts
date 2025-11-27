@@ -30,22 +30,35 @@ export const subscribeToAuth = (callback: (user: UserProgress | null) => void) =
       if (userSnap.exists()) {
         const data = userSnap.data() as UserProgress;
         // Update local auth fields just in case
-        callback({ 
-          ...data, 
+        const updatedUser: UserProgress = {
+          ...data,
           isLoggedIn: true,
-          name: firebaseUser.displayName || data.name, 
-          email: firebaseUser.email || data.email, 
-          photoURL: firebaseUser.photoURL || undefined
-        });
+          name: firebaseUser.displayName || data.name,
+          email: firebaseUser.email || data.email
+        };
+
+        // Only set photoURL if it exists
+        if (firebaseUser.photoURL) {
+          updatedUser.photoURL = firebaseUser.photoURL;
+        } else if (data.photoURL) {
+          updatedUser.photoURL = data.photoURL;
+        }
+
+        callback(updatedUser);
       } else {
         // New User -> Create Document
         const newUser: UserProgress = {
           ...INITIAL_USER,
           isLoggedIn: true,
-          name: firebaseUser.displayName || "User",
-          email: firebaseUser.email || "",
-          photoURL: firebaseUser.photoURL || undefined
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User",
+          email: firebaseUser.email || ""
         };
+
+        // Only add photoURL if it exists (for Google login compatibility)
+        if (firebaseUser.photoURL) {
+          newUser.photoURL = firebaseUser.photoURL;
+        }
+
         await setDoc(userRef, newUser);
         callback(newUser);
       }
