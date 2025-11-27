@@ -378,6 +378,7 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
   const [score, setScore] = useState(0);
   const [testFailed, setTestFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showVietnamese, setShowVietnamese] = useState<Record<string, boolean>>({});
   
   // Fetch lesson async
   useEffect(() => {
@@ -465,14 +466,30 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
           {lesson.vocab.map((v, idx) => (
             <Card key={idx} className="hover:shadow-lg transition-shadow border-l-4 border-safetyBlue">
               <div className="flex justify-between items-start">
-                <div>
+                <div className="flex-1">
                   <h3 className="text-lg font-bold text-gray-900">{v.term} <span className="text-gray-400 font-normal text-sm font-mono">{v.ipa}</span></h3>
                   <p className="text-gray-600 italic mb-2">{v.meaning}</p>
-                  <p className="text-safetyBlue text-sm bg-blue-50 p-2 rounded">
+                  <p className="text-safetyBlue text-sm bg-blue-50 p-2 rounded mb-2">
                     <i className="fas fa-quote-left mr-2 opacity-50"></i>{v.example}
                   </p>
+                  {v.vietnamese && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setShowVietnamese((prev: Record<string, boolean>) => ({ ...prev, [`vocab-${idx}`]: !prev[`vocab-${idx}`] }))}
+                        className="text-xs text-gray-500 hover:text-safetyBlue flex items-center gap-1"
+                      >
+                        <i className={`fas fa-language`}></i>
+                        {showVietnamese[`vocab-${idx}`] ? 'Ẩn bản dịch' : 'Hiện bản dịch'}
+                      </button>
+                      {showVietnamese[`vocab-${idx}`] && (
+                        <p className="text-sm text-green-700 bg-green-50 p-2 rounded mt-1 border border-green-200">
+                          🇻🇳 {v.vietnamese}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center ml-4">
                   <AudioButton text={v.term} />
                   {!isReview && <PronunciationTest targetPhrase={v.term} />}
                 </div>
@@ -497,7 +514,23 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
                    </div>
                    <div className={`bg-white p-4 rounded-xl shadow-sm max-w-[80%] relative`}>
                      <p className="text-xs text-gray-400 font-bold mb-1">{line.role}</p>
-                     <p className="text-gray-800">{line.text}</p>
+                     <p className="text-gray-800 mb-2">{line.text}</p>
+                     {line.vietnamese && (
+                       <div className="mt-2">
+                         <button
+                           onClick={() => setShowVietnamese((prev: Record<string, boolean>) => ({ ...prev, [`dialogue-${idx}`]: !prev[`dialogue-${idx}`] }))}
+                           className="text-xs text-gray-500 hover:text-green-600 flex items-center gap-1"
+                         >
+                           <i className="fas fa-language"></i>
+                           {showVietnamese[`dialogue-${idx}`] ? 'Ẩn' : 'Xem dịch'}
+                         </button>
+                         {showVietnamese[`dialogue-${idx}`] && (
+                           <p className="text-sm text-green-700 bg-green-50 p-2 rounded mt-1 border border-green-200">
+                             🇻🇳 {line.vietnamese}
+                           </p>
+                         )}
+                       </div>
+                     )}
                      <div className="absolute -right-3 top-2">
                        <AudioButton text={line.text} />
                      </div>

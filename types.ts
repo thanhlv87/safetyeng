@@ -3,12 +3,14 @@ export interface Vocab {
   meaning: string;
   example: string;
   ipa?: string;
+  vietnamese?: string; // Vietnamese translation
 }
 
 export interface DialogueLine {
   speaker: string;
-  role: 'Engineer' | 'Safety Officer' | 'Worker' | 'Manager';
+  role: 'Engineer' | 'Safety Officer' | 'Worker' | 'Manager' | 'Examiner' | 'Trainee' | 'You';
   text: string;
+  vietnamese?: string; // Vietnamese translation
 }
 
 export interface QuizQuestion {

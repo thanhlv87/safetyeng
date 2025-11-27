@@ -54,27 +54,33 @@ Generate a JSON response with this EXACT structure:
       "term": "Hard hat",
       "meaning": "Protective helmet worn on construction sites",
       "example": "Always wear your hard hat in the work area.",
-      "ipa": "/hɑːrd hæt/"
+      "ipa": "/hɑːrd hæt/",
+      "vietnamese": "Mũ bảo hiểm"
     }
     // Include 5 vocabulary words directly related to the topic
+    // IMPORTANT: Always include Vietnamese translation
   ],
   "dialogue": [
     {
       "speaker": "Tom",
       "role": "Worker",
-      "text": "Where is my hard hat?"
+      "text": "Where is my hard hat?",
+      "vietnamese": "Mũ bảo hiểm của tôi ở đâu?"
     },
     {
       "speaker": "Sam",
       "role": "Safety Officer",
-      "text": "It's on the table. Always wear it on site!"
+      "text": "It's on the table. Always wear it on site!",
+      "vietnamese": "Nó ở trên bàn. Luôn đội nó khi ở công trường!"
     },
     {
       "speaker": "Tom",
       "role": "Worker",
-      "text": "Thank you! Safety first!"
+      "text": "Thank you! Safety first!",
+      "vietnamese": "Cảm ơn! An toàn là trên hết!"
     }
     // Include 3-4 lines of realistic workplace dialogue
+    // IMPORTANT: Always include Vietnamese translation for each line
   ],
   "scenario": {
     "title": "Missing PPE Situation",
@@ -99,8 +105,10 @@ Generate a JSON response with this EXACT structure:
 
 CRITICAL Requirements:
 - Vocabulary must be practical and commonly used in safety contexts
+- Vietnamese translations MUST be accurate and natural
 - IPA pronunciation guides must be accurate
 - Dialogue should be natural and workplace-appropriate
+- Each dialogue line MUST have Vietnamese translation
 - Scenario should present a realistic safety situation
 - Quiz questions MUST be UNIQUE and DIFFERENT from each other
 - Each question must test a DIFFERENT aspect of the topic
@@ -109,6 +117,7 @@ CRITICAL Requirements:
 - All content must be beginner-friendly (A1-A2 English level)
 - Focus on PRACTICAL safety knowledge workers need
 - AVOID repetitive question patterns
+- Vietnamese translations should be simple and easy to understand
 
 Example of GOOD question variety:
 Q1: Vocabulary test - "What does 'hazard' mean?"
@@ -187,26 +196,32 @@ Generate a JSON response with:
       "term": "Review",
       "meaning": "To look at something again to remember it",
       "example": "Let's review what we learned this week.",
-      "ipa": "/rɪˈvjuː/"
+      "ipa": "/rɪˈvjuː/",
+      "vietnamese": "Ôn tập"
     }
     // Include 5 review-related vocabulary
+    // IMPORTANT: Always include Vietnamese translation
   ],
   "dialogue": [
     {
       "speaker": "Examiner",
       "role": "Safety Officer",
-      "text": "Welcome to Checkpoint Test ${day / 5}. Are you ready?"
+      "text": "Welcome to Checkpoint Test ${day / 5}. Are you ready?",
+      "vietnamese": "Chào mừng đến với bài kiểm tra ${day / 5}. Bạn đã sẵn sàng chưa?"
     },
     {
       "speaker": "You",
       "role": "Trainee",
-      "text": "Yes, I'm ready to show what I've learned."
+      "text": "Yes, I'm ready to show what I've learned.",
+      "vietnamese": "Vâng, tôi đã sẵn sàng để thể hiện những gì tôi đã học."
     },
     {
       "speaker": "Examiner",
       "role": "Safety Officer",
-      "text": "Good! You need 80% to pass. Let's begin."
+      "text": "Good! You need 80% to pass. Let's begin.",
+      "vietnamese": "Tốt! Bạn cần đạt 80% để vượt qua. Hãy bắt đầu nào."
     }
+    // IMPORTANT: Always include Vietnamese translation for each line
   ],
   "scenario": {
     "title": "Checkpoint ${day / 5} Assessment",
