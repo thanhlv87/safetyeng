@@ -1,6 +1,6 @@
 import { UserProgress, DailyLesson } from '../types';
 import { auth, db, googleProvider } from './firebase';
-import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
+import { signInWithRedirect, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { getLessonForDay as generateLessonLocally } from './curriculum';
 
@@ -58,10 +58,23 @@ export const subscribeToAuth = (callback: (user: UserProgress | null) => void) =
 
 export const loginWithGoogle = async () => {
   try {
-    await signInWithPopup(auth, googleProvider);
+    // Use redirect instead of popup for better compatibility on production
+    await signInWithRedirect(auth, googleProvider);
   } catch (error) {
     console.error("Login failed", error);
     alert("Login failed. Please check your connection.");
+  }
+};
+
+export const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      // User successfully signed in via redirect
+      console.log("Signed in via redirect:", result.user);
+    }
+  } catch (error) {
+    console.error("Redirect result error", error);
   }
 };
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Tab, UserProgress, DailyLesson } from './types';
 import { DICTIONARY_TERMS } from './services/curriculum';
-import { subscribeToAuth, loginWithGoogle, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData } from './services/storage';
+import { subscribeToAuth, loginWithGoogle, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData, handleRedirectResult } from './services/storage';
 import { generateCertificate } from './services/certificate';
 import { auth } from './services/firebase';
 
@@ -638,6 +638,9 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Handle redirect result first (for Google Sign-In redirect)
+    handleRedirectResult();
+
     // Listen to Firebase Auth
     const unsubscribe = subscribeToAuth((userData) => {
       setUser(userData);
