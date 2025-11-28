@@ -52,30 +52,95 @@ export const TOPIC_CATEGORIES: TopicCategory[] = [
   }
 ];
 
-// Map days to categories
+// Map days to categories (all 60 days mapped to topics)
 export const DAY_CATEGORY_MAP: Record<number, string> = {
-  // General Safety (Days 1-4, 6-9, 16-19, 31-34)
-  1: 'general-safety', 2: 'general-safety', 3: 'general-safety', 4: 'general-safety',
-  6: 'general-safety', 7: 'general-safety', 8: 'general-safety', 9: 'general-safety',
-  16: 'emergency', 17: 'emergency', 26: 'emergency', 27: 'emergency', 28: 'emergency', 29: 'emergency',
-  31: 'general-safety', 32: 'general-safety', 33: 'general-safety', 34: 'general-safety',
+  // PHASE 1: FOUNDATION (Days 1-30)
 
-  // Chemicals (Days 21-24)
-  21: 'chemicals', 22: 'chemicals', 23: 'chemicals', 24: 'chemicals',
+  // Block 1: Days 1-4 (General Safety Intro + Signs + Numbers + PPE)
+  1: 'general-safety', // Safety First (Introduction)
+  2: 'general-safety', // Safety Colors & Signs
+  3: 'general-safety', // Numbers & Quantities on Site
+  4: 'general-safety', // Basic PPE (Head & Feet)
+  // Day 5: CHECKPOINT TEST 1 (no category)
 
-  // Electrical (Days 18-19)
-  18: 'electrical', 19: 'electrical', 41: 'electrical', 42: 'electrical', 43: 'electrical', 44: 'electrical',
+  // Block 2: Days 6-9 (PPE Equipment)
+  6: 'general-safety', // Eye & Ear Protection
+  7: 'general-safety', // Hand Protection (Gloves)
+  8: 'general-safety', // Work Clothing (High-Vis)
+  9: 'equipment',      // Tools: Hand Tools
+  // Day 10: CHECKPOINT TEST 2 (no category)
 
-  // Height Work (Days 36-39)
-  36: 'height-work', 37: 'height-work', 38: 'height-work', 39: 'height-work',
+  // Block 3: Days 11-14 (Tools & Basic Hazards)
+  11: 'equipment',      // Tools: Power Tools
+  12: 'general-safety', // Slips and Trips
+  13: 'general-safety', // Lifting Heavy Things
+  14: 'height-work',    // Using a Ladder
+  // Day 15: CHECKPOINT TEST 3 (no category)
 
-  // Equipment (Days 11-14, 46-49, 51-54)
-  11: 'equipment', 12: 'equipment', 13: 'equipment', 14: 'equipment',
-  46: 'equipment', 47: 'equipment', 48: 'equipment', 49: 'equipment',
-  51: 'equipment', 52: 'equipment', 53: 'equipment', 54: 'equipment',
+  // Block 4: Days 16-19 (Fire & Electrical)
+  16: 'emergency',   // Fire: Basic Words
+  17: 'emergency',   // Fire Extinguishers
+  18: 'electrical',  // Electricity: On/Off
+  19: 'electrical',  // Electrical Cords & Plugs
+  // Day 20: CHECKPOINT TEST 4 (no category)
 
-  // Confined Space (Days 46-49)
-  // Review days remain uncategorized (every 5th day)
+  // Block 5: Days 21-24 (Chemicals)
+  21: 'chemicals', // Chemicals: Warning Labels
+  22: 'chemicals', // Cleaning Safety
+  23: 'chemicals', // Dust & Fumes
+  24: 'chemicals', // Ventilation Basics
+  // Day 25: CHECKPOINT TEST 5 (no category)
+
+  // Block 6: Days 26-29 (First Aid & Emergency)
+  26: 'emergency', // First Aid Kit
+  27: 'emergency', // Minor Cuts & Bruises
+  28: 'emergency', // Reporting an Injury
+  29: 'emergency', // Emergency Numbers
+  // Day 30: CHECKPOINT TEST 6 (no category)
+
+  // PHASE 2: APPLICATION (Days 31-60)
+
+  // Block 7: Days 31-34 (Hazard & Risk)
+  31: 'general-safety', // Hazard Identification
+  32: 'general-safety', // Risk Assessment Basics
+  33: 'general-safety', // Work Permits
+  34: 'general-safety', // Site Rules
+  // Day 35: CHECKPOINT TEST 7 (no category)
+
+  // Block 8: Days 36-39 (Work at Height)
+  36: 'height-work', // Working at Height (Scaffolding)
+  37: 'height-work', // Fall Harness Safety
+  38: 'height-work', // Falling Objects
+  39: 'height-work', // Barricades & Tapes
+  // Day 40: CHECKPOINT TEST 8 (no category)
+
+  // Block 9: Days 41-44 (LOTO & Machines)
+  41: 'electrical',  // Lockout / Tagout (LOTO)
+  42: 'equipment',   // Machine Guards
+  43: 'equipment',   // Emergency Stop Buttons
+  44: 'equipment',   // Conveyor Belt Safety
+  // Day 45: CHECKPOINT TEST 9 (no category)
+
+  // Block 10: Days 46-49 (Confined Spaces)
+  46: 'general-safety', // Confined Spaces (Basics)
+  47: 'chemicals',      // Gas Testing
+  48: 'general-safety', // The Buddy System
+  49: 'emergency',      // Rescue Equipment
+  // Day 50: CHECKPOINT TEST 10 (no category)
+
+  // Block 11: Days 51-54 (Mobile Equipment)
+  51: 'equipment', // Crane Signals
+  52: 'equipment', // Forklift Safety
+  53: 'equipment', // Trucks & Traffic
+  54: 'equipment', // Pedestrian Walkways
+  // Day 55: CHECKPOINT TEST 11 (no category)
+
+  // Block 12: Days 56-59 (Environmental & Culture)
+  56: 'general-safety', // Noise Control
+  57: 'emergency',      // Heat Stress
+  58: 'chemicals',      // Environmental Spills
+  59: 'general-safety', // Safety Culture
+  // Day 60: FINAL CERTIFICATION EXAM (no category)
 };
 
 // 60-Day Roadmap for Beginners
