@@ -1353,9 +1353,8 @@ const CertificateView: React.FC<{ user: UserProgress }> = ({ user }) => {
 const BottomNav: React.FC = () => {
   const navItems = [
     { id: 'topics', icon: 'fa-layer-group', label: 'Topics', path: '/' },
-    { id: Tab.HOME, icon: 'fa-chart-line', label: 'Progress', path: '/dashboard' },
     { id: Tab.DICTIONARY, icon: 'fa-book', label: 'Dict', path: '/dictionary' },
-    { id: Tab.PROFILE, icon: 'fa-user', label: 'Profile', path: '/certificate' },
+    { id: Tab.PROFILE, icon: 'fa-certificate', label: 'Cert', path: '/certificate' },
   ];
   return (
     <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-2 px-6 flex justify-between items-center z-50 md:hidden shadow-[0_-5px_10px_rgba(0,0,0,0.05)]">
