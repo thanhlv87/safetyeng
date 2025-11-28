@@ -1458,11 +1458,13 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
         onTouchEnd={onTouchEnd}
       >
         <div
-          className={`relative w-full h-[350px] md:h-[450px] transform-style-3d cursor-pointer ${
-            isFlipped ? 'rotate-y-180' : ''
-          }`}
+          className="relative w-full h-[350px] md:h-[450px] transform-style-3d cursor-pointer"
           style={{
-            transform: cardTransform,
+            transform: swipeDirection
+              ? cardTransform
+              : isFlipped
+                ? 'rotateY(180deg)'
+                : 'rotateY(0deg)',
             transition: swipeDirection
               ? 'transform 0.3s ease-out'
               : 'transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1)'
