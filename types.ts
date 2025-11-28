@@ -40,7 +40,8 @@ export interface TopicCategory {
 
 export interface DailyLesson {
   id: number; // 1 to 60
-  topic: string;
+  topicId: string; // Topic category ID
+  topic: string; // Topic title for display
   isReviewDay: boolean;
   vocab: Vocab[];
   dialogue: DialogueLine[];
@@ -48,11 +49,15 @@ export interface DailyLesson {
   quiz: QuizQuestion[];
 }
 
+// Progress tracking for a single topic (each topic has 60 days)
+export interface TopicProgress {
+  currentDay: number; // The day the user is currently allowed to access (1-60)
+  completedDays: number[]; // List of completed day numbers
+  quizScores: Record<number, number>; // Day ID -> Score percentage
+}
+
 export interface UserProgress {
   isLoggedIn: boolean;
-  currentDay: number; // The day the user is currently allowed to access
-  completedDays: number[];
-  quizScores: Record<number, number>; // Day ID -> Score
   name: string;
   email: string;
   jobTitle?: string;
@@ -60,6 +65,7 @@ export interface UserProgress {
   photoURL?: string; // For Gmail profile pic simulation
   streak: number;
   lastLoginDate: string;
+  topics: Record<string, TopicProgress>; // topicId -> progress for that topic
 }
 
 export enum Tab {

@@ -1,67 +1,45 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { DailyLesson } from '../types';
-import { DAY_CATEGORY_MAP, TOPIC_CATEGORIES } from './curriculum';
+import { TOPIC_CATEGORIES } from './curriculum';
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
 
-const TOPICS = [
-  // --- PHASE 1: FOUNDATION (Days 1-30) ---
-  "Safety First (Introduction)", "Safety Colors & Signs", "Numbers & Quantities on Site", "Basic PPE (Head & Feet)", "CHECKPOINT TEST 1",
-  "Eye & Ear Protection", "Hand Protection (Gloves)", "Work Clothing (High-Vis)", "Tools: Hand Tools", "CHECKPOINT TEST 2",
-  "Tools: Power Tools", "Slips and Trips", "Lifting Heavy Things", "Using a Ladder", "CHECKPOINT TEST 3",
-  "Fire: Basic Words", "Fire Extinguishers", "Electricity: On/Off", "Electrical Cords & Plugs", "CHECKPOINT TEST 4",
-  "Chemicals: Warning Labels", "Cleaning Safety", "Dust & Fumes", "Ventilation Basics", "CHECKPOINT TEST 5",
-  "First Aid Kit", "Minor Cuts & Bruises", "Reporting an Injury", "Emergency Numbers", "CHECKPOINT TEST 6",
+// Each topic has its own 60-day curriculum
+export async function generateLessonWithAI(topicId: string, day: number): Promise<DailyLesson> {
+  const category = TOPIC_CATEGORIES.find(c => c.id === topicId);
+  if (!category) {
+    throw new Error(`Topic ${topicId} not found`);
+  }
 
-  // --- PHASE 2: APPLICATION (Days 31-60) ---
-  "Hazard Identification", "Risk Assessment Basics", "Work Permits", "Site Rules", "CHECKPOINT TEST 7",
-  "Working at Height (Scaffolding)", "Fall Harness Safety", "Falling Objects", "Barricades & Tapes", "CHECKPOINT TEST 8",
-  "Lockout / Tagout (LOTO)", "Machine Guards", "Emergency Stop Buttons", "Conveyor Belt Safety", "CHECKPOINT TEST 9",
-  "Confined Spaces (Basics)", "Gas Testing", "The Buddy System", "Rescue Equipment", "CHECKPOINT TEST 10",
-  "Crane Signals", "Forklift Safety", "Trucks & Traffic", "Pedestrian Walkways", "CHECKPOINT TEST 11",
-  "Noise Control", "Heat Stress", "Environmental Spills", "Safety Culture", "FINAL CERTIFICATION EXAM"
-];
-
-// Get category context for a day
-function getCategoryContext(day: number): string {
-  const categoryId = DAY_CATEGORY_MAP[day];
-  if (!categoryId) return "";
-
-  const category = TOPIC_CATEGORIES.find(c => c.id === categoryId);
-  if (!category) return "";
-
-  return `\n\nCategory Context: This lesson is part of the "${category.name}" (${category.nameVietnamese}) category.
-Focus: ${category.description}
-Make sure all vocabulary, dialogue, and scenarios are specifically related to ${category.name.toLowerCase()}.`;
-}
-
-export async function generateLessonWithAI(day: number): Promise<DailyLesson> {
-  const topic = TOPICS[day - 1] || `Day ${day} Topic`;
   const isReviewDay = day % 5 === 0;
 
-  console.log(`🤖 Generating lesson for Day ${day}: ${topic}`);
+  console.log(`🤖 Generating lesson for ${category.name} Day ${day}`);
 
   try {
     if (isReviewDay) {
-      return await generateReviewLesson(day, topic);
+      return await generateReviewLesson(topicId, category, day);
     } else {
-      return await generateRegularLesson(day, topic);
+      return await generateRegularLesson(topicId, category, day);
     }
   } catch (error) {
     console.error("AI generation failed, using fallback:", error);
-    return generateFallbackLesson(day, topic, isReviewDay);
+    return generateFallbackLesson(topicId, category, day, isReviewDay);
   }
 }
 
-async function generateRegularLesson(day: number, topic: string): Promise<DailyLesson> {
-  const categoryContext = getCategoryContext(day);
-
+async function generateRegularLesson(topicId: string, category: any, day: number): Promise<DailyLesson> {
   const prompt = `You are an expert English teacher for occupational safety training.
 Create a complete English lesson for beginners working in construction/manufacturing.
 
-Topic: "${topic}"
-Day: ${day}/60${categoryContext}
+Topic Category: "${category.name}" (${category.nameVietnamese})
+Category Focus: ${category.description}
+Day: ${day}/60 in this specific topic
+
+IMPORTANT: This is Day ${day} of a 60-day course specifically about "${category.name}".
+- All content must be directly related to ${category.name.toLowerCase()}
+- Create progressive difficulty: Days 1-20 are basic, Days 21-40 intermediate, Days 41-60 advanced
+- Focus on practical, workplace-relevant vocabulary and scenarios for ${category.name.toLowerCase()}
 
 Generate a JSON response with this EXACT structure:
 {
@@ -167,7 +145,8 @@ Return ONLY valid JSON, no markdown formatting.`;
     const retryData = JSON.parse(retryText);
     return {
       id: day,
-      topic: topic,
+      topicId: topicId,
+      topic: `${category.name} - Day ${day}`,
       isReviewDay: false,
       vocab: retryData.vocab,
       dialogue: retryData.dialogue,
@@ -184,7 +163,8 @@ Return ONLY valid JSON, no markdown formatting.`;
 
   return {
     id: day,
-    topic: topic,
+    topicId: topicId,
+    topic: `${category.name} - Day ${day}`,
     isReviewDay: false,
     vocab: aiData.vocab,
     dialogue: aiData.dialogue,
@@ -199,14 +179,15 @@ Return ONLY valid JSON, no markdown formatting.`;
   };
 }
 
-async function generateReviewLesson(day: number, topic: string): Promise<DailyLesson> {
+async function generateReviewLesson(topicId: string, category: any, day: number): Promise<DailyLesson> {
   const startDay = day - 4;
   const endDay = day - 1;
-  const reviewTopics = TOPICS.slice(startDay - 1, endDay).join(", ");
 
   const prompt = `You are creating a CHECKPOINT TEST for an occupational safety English course.
 
-This test reviews Days ${startDay}-${endDay}, covering: ${reviewTopics}
+Topic Category: "${category.name}" (${category.nameVietnamese})
+This test reviews Days ${startDay}-${endDay} within the ${category.name} topic.
+Focus: ${category.description}
 
 Generate a JSON response with:
 {
@@ -291,7 +272,8 @@ Return ONLY valid JSON, no markdown.`;
     const retryData = JSON.parse(retryText);
     return {
       id: day,
-      topic: `REVIEW: ${topic}`,
+      topicId: topicId,
+      topic: `${category.name} - CHECKPOINT ${day / 5}`,
       isReviewDay: true,
       vocab: retryData.vocab,
       dialogue: retryData.dialogue,
@@ -308,7 +290,8 @@ Return ONLY valid JSON, no markdown.`;
 
   return {
     id: day,
-    topic: `REVIEW: ${topic}`,
+    topicId: topicId,
+    topic: `${category.name} - CHECKPOINT ${day / 5}`,
     isReviewDay: true,
     vocab: aiData.vocab,
     dialogue: aiData.dialogue,
@@ -323,25 +306,26 @@ Return ONLY valid JSON, no markdown.`;
   };
 }
 
-function generateFallbackLesson(day: number, topic: string, isReviewDay: boolean): DailyLesson {
+function generateFallbackLesson(topicId: string, category: any, day: number, isReviewDay: boolean): DailyLesson {
   // Fallback nếu AI fail - trả về lesson cơ bản
-  console.warn(`Using fallback lesson for day ${day}`);
+  console.warn(`Using fallback lesson for ${category.name} day ${day}`);
 
   return {
     id: day,
-    topic: isReviewDay ? `REVIEW: ${topic}` : topic,
+    topicId: topicId,
+    topic: isReviewDay ? `${category.name} - CHECKPOINT ${day / 5}` : `${category.name} - Day ${day}`,
     isReviewDay,
     vocab: [
       { term: "Safety", meaning: "Being safe; not dangerous", example: "Safety is our priority.", ipa: "/ˈseɪf.ti/" },
-      { term: topic.split(' ')[0], meaning: `Related to ${topic}`, example: `Learn about ${topic}.`, ipa: "//" }
+      { term: category.name, meaning: `Related to ${category.name}`, example: `Learn about ${category.name}.`, ipa: "//" }
     ],
     dialogue: [
-      { speaker: "Tom", role: "Worker", text: `Tell me about ${topic}.` },
+      { speaker: "Tom", role: "Worker", text: `Tell me about ${category.name}.` },
       { speaker: "Sam", role: "Safety Officer", text: "It's very important for safety." }
     ],
     scenario: {
-      title: `${topic} Scenario`,
-      description: `A situation involving ${topic}.`,
+      title: `${category.name} - Day ${day}`,
+      description: `A situation involving ${category.name.toLowerCase()}.`,
       dangerLevel: "High",
       imgPlaceholder: `https://raw.githubusercontent.com/thanhlv87/pic/refs/heads/main/safety-day${day}.jpg`
     },

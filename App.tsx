@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Tab, UserProgress, DailyLesson, TopicCategory } from './types';
-import { DICTIONARY_TERMS, TOPIC_CATEGORIES, DAY_CATEGORY_MAP } from './services/curriculum';
-import { subscribeToAuth, loginWithEmail, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData } from './services/storage';
+import { DICTIONARY_TERMS, TOPIC_CATEGORIES } from './services/curriculum';
+import { subscribeToAuth, loginWithEmail, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData, initializeTopic } from './services/storage';
 import { generateCertificate } from './services/certificate';
 import { auth } from './services/firebase';
 
@@ -367,10 +367,10 @@ const HomeView: React.FC<{ user: UserProgress }> = ({ user }) => {
 };
 
 const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => void }> = ({ user, onUpdate }) => {
-  const { id } = useParams();
+  const { topicId, id } = useParams();
   const navigate = useNavigate();
   const dayId = parseInt(id || '1');
-  
+
   const [lesson, setLesson] = useState<DailyLesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<'vocab' | 'dialogue' | 'scenario' | 'quiz' | 'complete'>('vocab');
@@ -379,7 +379,19 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
   const [testFailed, setTestFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showVietnamese, setShowVietnamese] = useState<Record<string, boolean>>({});
-  
+
+  // Validate topicId
+  if (!topicId) {
+    return (
+      <div className="p-10 text-center">
+        <p className="text-lg text-red-600">Error: Topic ID is missing</p>
+        <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
+          Quay lại Trang chủ
+        </Button>
+      </div>
+    );
+  }
+
   // Fetch lesson async
   useEffect(() => {
     let isMounted = true;
@@ -393,7 +405,7 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
       console.log('🔄 Force regenerating lesson...');
     }
 
-    fetchLesson(dayId, forceRegenerate).then(data => {
+    fetchLesson(topicId, dayId, forceRegenerate).then(data => {
        if (isMounted) {
           setLesson(data);
           setLoading(false);
@@ -403,7 +415,7 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
        }
     });
     return () => { isMounted = false; };
-  }, [dayId]);
+  }, [topicId, dayId]);
 
   if (loading || !lesson) {
     return (
@@ -425,7 +437,7 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
     setSubmitting(true);
 
     if (auth.currentUser) {
-        const result = await markDayCompleteInDb(auth.currentUser.uid, user, dayId, finalScore);
+        const result = await markDayCompleteInDb(auth.currentUser.uid, user, topicId, dayId, finalScore);
         onUpdate(result.user);
         // Set testFailed if score < 80% (applies to ALL days, not just review days)
         if (!result.passed) {
@@ -437,16 +449,17 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
   };
 
   const isReview = lesson.isReviewDay;
+  const topicCategory = TOPIC_CATEGORIES.find(t => t.id === topicId);
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
       <div className="flex items-center justify-between mb-6">
-        <button onClick={() => navigate('/')} className="text-gray-500 hover:text-safetyBlue">
-          <i className="fas fa-arrow-left mr-1"></i> Back
+        <button onClick={() => navigate(`/topics/${topicId}`)} className="text-gray-500 hover:text-safetyBlue">
+          <i className="fas fa-arrow-left mr-1"></i> Back to {topicCategory?.name}
         </button>
         <div>
            <h1 className="text-xl md:text-2xl font-bold text-safetyBlue">
-             {isReview ? <span className="text-red-600"><i className="fas fa-star"></i> CHECKPOINT TEST</span> : `Day ${dayId}: ${lesson.topic}`}
+             {isReview ? <span className="text-red-600"><i className="fas fa-star"></i> CHECKPOINT TEST</span> : `${lesson.topic}`}
            </h1>
         </div>
       </div>
@@ -687,14 +700,15 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
              ) : (
                <Button onClick={() => {
                   if(dayId < 60) {
-                     navigate('/');
-                     // Small hack to ensure data sync before navigating again, or just let Home refresh
-                     setTimeout(() => navigate(`/day/${dayId + 1}`), 100);
+                     // Navigate back to topic view, then to next day
+                     navigate(`/topics/${topicId}`);
+                     setTimeout(() => navigate(`/topics/${topicId}/day/${dayId + 1}`), 100);
                   } else {
-                    navigate('/certificate');
+                    // Completed all 60 days of this topic
+                    navigate(`/topics/${topicId}`);
                   }
                }}>
-                 {dayId < 60 ? 'Next Day' : 'Get Certificate'}
+                 {dayId < 60 ? 'Next Day' : 'Back to Topic'}
                </Button>
              )}
            </div>
@@ -707,21 +721,29 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
 const TopicsOverview: React.FC<{ user: UserProgress }> = ({ user }) => {
   const navigate = useNavigate();
 
-  // Calculate stats for each topic
-  const getTopicStats = (categoryId: string) => {
-    const daysList = Object.entries(DAY_CATEGORY_MAP)
-      .filter(([_, catId]) => catId === categoryId)
-      .map(([day, _]) => parseInt(day));
+  // Calculate stats for each topic using new data structure
+  const getTopicStats = (topicId: string) => {
+    const topicProgress = user.topics[topicId];
 
-    const completedDays = daysList.filter(day => user.completedDays.includes(day));
-    const scores = completedDays.map(day => user.quizScores[day] || 0);
+    if (!topicProgress) {
+      // Topic not started yet
+      return {
+        totalDays: 60, // Each topic has 60 days
+        completedDays: 0,
+        avgScore: 0,
+        currentDay: 1
+      };
+    }
+
+    const completedDays = topicProgress.completedDays.length;
+    const scores = Object.values(topicProgress.quizScores);
     const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
 
     return {
-      totalDays: daysList.length,
-      completedDays: completedDays.length,
+      totalDays: 60, // Each topic has 60 days
+      completedDays,
       avgScore,
-      daysList
+      currentDay: topicProgress.currentDay
     };
   };
 
@@ -801,9 +823,10 @@ const TopicsOverview: React.FC<{ user: UserProgress }> = ({ user }) => {
   );
 };
 
-const TopicDetailView: React.FC<{ user: UserProgress }> = ({ user }) => {
+const TopicDetailView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => void }> = ({ user, onUpdate }) => {
   const { topicId } = useParams();
   const navigate = useNavigate();
+  const [isInitializing, setIsInitializing] = useState(false);
 
   const topic = TOPIC_CATEGORIES.find(t => t.id === topicId);
 
@@ -811,21 +834,42 @@ const TopicDetailView: React.FC<{ user: UserProgress }> = ({ user }) => {
     return (
       <div className="text-center py-10">
         <p className="text-gray-500">Không tìm thấy chuyên đề</p>
-        <Button variant="outline" onClick={() => navigate('/topics')} className="mt-4">
+        <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
           Quay lại
         </Button>
       </div>
     );
   }
 
-  const daysList = Object.entries(DAY_CATEGORY_MAP)
-    .filter(([_, catId]) => catId === topicId)
-    .map(([day, _]) => parseInt(day))
-    .sort((a, b) => a - b);
+  // Get topic progress (each topic has 60 days: 1-60)
+  const topicProgress = user.topics[topicId];
+  const isTopicStarted = !!topicProgress;
 
-  const completedCount = daysList.filter(d => user.completedDays.includes(d)).length;
-  const totalScore = daysList.reduce((sum, d) => sum + (user.quizScores[d] || 0), 0);
-  const avgScore = completedCount > 0 ? Math.round(totalScore / completedCount) : 0;
+  // Initialize topic when user clicks "Start Learning"
+  const handleStartTopic = async () => {
+    setIsInitializing(true);
+    try {
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        const updatedUser = await initializeTopic(uid, user, topicId);
+        onUpdate(updatedUser);
+        // Navigate to Day 1 after initialization
+        navigate(`/topics/${topicId}/day/1`);
+      }
+    } catch (error) {
+      console.error("Failed to initialize topic:", error);
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  // Generate days 1-60 for this topic
+  const daysList = Array.from({ length: 60 }, (_, i) => i + 1);
+
+  const completedCount = topicProgress?.completedDays.length || 0;
+  const scores = topicProgress ? Object.values(topicProgress.quizScores) : [];
+  const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  const currentDay = topicProgress?.currentDay || 1;
 
   return (
     <div className="space-y-6 animate-fade-in pb-20">
@@ -867,25 +911,56 @@ const TopicDetailView: React.FC<{ user: UserProgress }> = ({ user }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {daysList.map(dayNum => {
-          const isCompleted = user.completedDays.includes(dayNum);
-          const isLocked = dayNum > user.currentDay;
-          const isCurrent = dayNum === user.currentDay;
-          const score = user.quizScores[dayNum];
+      {/* Show "Start Learning" button if topic not started */}
+      {!isTopicStarted && (
+        <div className="bg-white border-2 border-gray-200 rounded-xl p-8 text-center">
+          <i className={`fas ${topic.icon} text-6xl ${topic.color.replace('bg-', 'text-')} mb-4`}></i>
+          <h2 className="text-2xl font-bold mb-2">Bắt đầu học {topic.name}</h2>
+          <p className="text-gray-600 mb-6">
+            Chương trình học 60 ngày với nội dung từ cơ bản đến nâng cao về {topic.nameVietnamese}.
+          </p>
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={handleStartTopic}
+            disabled={isInitializing}
+          >
+            {isInitializing ? (
+              <>
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                Đang khởi tạo...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-play mr-2"></i>
+                Bắt đầu học ngay
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
-          let bgClass = "bg-gray-100 text-gray-400"; // Locked
-          if (isCompleted) bgClass = "bg-green-100 text-green-700 border-2 border-green-300";
-          if (isCurrent) bgClass = "bg-safetyYellow text-safetyBlue font-bold shadow-md ring-2 ring-safetyBlue";
-          if (!isLocked && !isCompleted && !isCurrent) bgClass = "bg-white border-2 border-gray-300 text-gray-700 hover:bg-blue-50";
+      {/* Show day grid if topic started */}
+      {isTopicStarted && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {daysList.map(dayNum => {
+            const isCompleted = topicProgress.completedDays.includes(dayNum);
+            const isLocked = dayNum > currentDay;
+            const isCurrent = dayNum === currentDay;
+            const score = topicProgress.quizScores[dayNum];
 
-          return (
-            <button
-              key={dayNum}
-              disabled={isLocked}
-              onClick={() => navigate(`/day/${dayNum}`)}
-              className={`p-4 rounded-lg flex flex-col items-center justify-center transition-all ${bgClass}`}
-            >
+            let bgClass = "bg-gray-100 text-gray-400"; // Locked
+            if (isCompleted) bgClass = "bg-green-100 text-green-700 border-2 border-green-300";
+            if (isCurrent) bgClass = "bg-safetyYellow text-safetyBlue font-bold shadow-md ring-2 ring-safetyBlue";
+            if (!isLocked && !isCompleted && !isCurrent) bgClass = "bg-white border-2 border-gray-300 text-gray-700 hover:bg-blue-50";
+
+            return (
+              <button
+                key={dayNum}
+                disabled={isLocked}
+                onClick={() => navigate(`/topics/${topicId}/day/${dayNum}`)}
+                className={`p-4 rounded-lg flex flex-col items-center justify-center transition-all ${bgClass}`}
+              >
               <div className="text-2xl font-bold mb-1">
                 {isCompleted ? <i className="fas fa-check-circle"></i> : dayNum}
               </div>
@@ -899,6 +974,7 @@ const TopicDetailView: React.FC<{ user: UserProgress }> = ({ user }) => {
           );
         })}
       </div>
+      )}
     </div>
   );
 };
@@ -1098,8 +1174,8 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<TopicsOverview user={user} />} />
             <Route path="/dashboard" element={<HomeView user={user} />} />
-            <Route path="/day/:id" element={<LessonView user={user} onUpdate={setUser} />} />
-            <Route path="/topics/:topicId" element={<TopicDetailView user={user} />} />
+            <Route path="/topics/:topicId" element={<TopicDetailView user={user} onUpdate={setUser} />} />
+            <Route path="/topics/:topicId/day/:id" element={<LessonView user={user} onUpdate={setUser} />} />
             <Route path="/dictionary" element={<DictionaryView />} />
             <Route path="/certificate" element={<CertificateView user={user} />} />
             <Route path="*" element={<Navigate to="/" replace />} />

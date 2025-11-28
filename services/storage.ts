@@ -1,4 +1,4 @@
-import { UserProgress, DailyLesson } from '../types';
+import { UserProgress, DailyLesson, TopicProgress } from '../types';
 import { auth, db } from './firebase';
 import { signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
@@ -8,15 +8,19 @@ import { generateLessonWithAI } from './gemini';
 // --- Default Data ---
 const INITIAL_USER: UserProgress = {
   isLoggedIn: false,
-  currentDay: 1,
-  completedDays: [],
-  quizScores: {},
   name: "",
   email: "",
   jobTitle: "",
   company: "",
   streak: 0,
-  lastLoginDate: new Date().toISOString()
+  lastLoginDate: new Date().toISOString(),
+  topics: {} // No topics started initially
+};
+
+const INITIAL_TOPIC_PROGRESS: TopicProgress = {
+  currentDay: 1,
+  completedDays: [],
+  quizScores: {}
 };
 
 // --- Auth Functions ---
@@ -29,13 +33,28 @@ export const subscribeToAuth = (callback: (user: UserProgress | null) => void) =
       const userSnap = await getDoc(userRef);
 
       if (userSnap.exists()) {
-        const data = userSnap.data() as UserProgress;
-        // Update local auth fields just in case
+        const data = userSnap.data() as any;
+
+        // Migrate old data structure to new topic-based structure
+        let topics = data.topics || {};
+
+        // If old structure exists (currentDay, completedDays, quizScores at root level), migrate it
+        if (data.currentDay !== undefined && Object.keys(topics).length === 0) {
+          console.log("Migrating old user data to new topic-based structure");
+          // This was the old single-track system - we can't migrate it meaningfully
+          // Just start fresh with new structure
+          topics = {};
+        }
+
         const updatedUser: UserProgress = {
-          ...data,
           isLoggedIn: true,
-          name: firebaseUser.displayName || data.name,
-          email: firebaseUser.email || data.email
+          name: firebaseUser.displayName || data.name || "",
+          email: firebaseUser.email || data.email || "",
+          jobTitle: data.jobTitle,
+          company: data.company,
+          streak: data.streak || 0,
+          lastLoginDate: data.lastLoginDate || new Date().toISOString(),
+          topics: topics
         };
 
         // Only set photoURL if it exists
@@ -115,16 +134,17 @@ export const refreshUserData = async (uid: string): Promise<UserProgress | null>
   return null;
 };
 
-export const markDayCompleteInDb = async (uid: string, currentData: UserProgress, dayId: number, score: number) => {
+export const markDayCompleteInDb = async (uid: string, currentData: UserProgress, topicId: string, dayId: number, score: number) => {
   if (!uid) return { user: currentData, passed: false };
 
   const userRef = doc(db, "users", uid);
-  const isReviewDay = dayId % 5 === 0;
   // IMPORTANT: All days require 80% to unlock next day, not just review days
   const passed = score >= 80;
 
+  const topicProgress = currentData.topics[topicId] || INITIAL_TOPIC_PROGRESS;
+
   const updates: any = {
-    [`quizScores.${dayId}`]: score
+    [`topics.${topicId}.quizScores.${dayId}`]: score
   };
 
   // Check streak
@@ -137,13 +157,13 @@ export const markDayCompleteInDb = async (uid: string, currentData: UserProgress
 
   if (passed) {
     // Only update completedDays if not already there
-    if (!currentData.completedDays.includes(dayId)) {
-      updates.completedDays = arrayUnion(dayId);
+    if (!topicProgress.completedDays.includes(dayId)) {
+      updates[`topics.${topicId}.completedDays`] = arrayUnion(dayId);
     }
 
-    // Unlock logic
-    if (dayId === currentData.currentDay && currentData.currentDay < 60) {
-      updates.currentDay = currentData.currentDay + 1;
+    // Unlock logic - advance to next day within this topic
+    if (dayId === topicProgress.currentDay && topicProgress.currentDay < 60) {
+      updates[`topics.${topicId}.currentDay`] = topicProgress.currentDay + 1;
     }
   }
 
@@ -151,13 +171,17 @@ export const markDayCompleteInDb = async (uid: string, currentData: UserProgress
 
   // Return optimistically updated user object
   const updatedUser = { ...currentData };
-  updatedUser.quizScores = { ...updatedUser.quizScores, [dayId]: score };
-  if (passed && !updatedUser.completedDays.includes(dayId)) {
-    updatedUser.completedDays.push(dayId);
+  const updatedTopicProgress = { ...topicProgress };
+  updatedTopicProgress.quizScores = { ...updatedTopicProgress.quizScores, [dayId]: score };
+  if (passed && !updatedTopicProgress.completedDays.includes(dayId)) {
+    updatedTopicProgress.completedDays = [...updatedTopicProgress.completedDays, dayId];
   }
-  if (passed && dayId === updatedUser.currentDay && updatedUser.currentDay < 60) {
-    updatedUser.currentDay += 1;
+  if (passed && dayId === updatedTopicProgress.currentDay && updatedTopicProgress.currentDay < 60) {
+    updatedTopicProgress.currentDay += 1;
   }
+
+  updatedUser.topics = { ...updatedUser.topics, [topicId]: updatedTopicProgress };
+
   if (today !== lastLogin) {
      updatedUser.streak += 1;
      updatedUser.lastLoginDate = updates.lastLoginDate;
@@ -166,26 +190,51 @@ export const markDayCompleteInDb = async (uid: string, currentData: UserProgress
   return { user: updatedUser, passed };
 };
 
+// --- Topic Management ---
+
+// Initialize a topic when user starts learning it
+export const initializeTopic = async (uid: string, currentData: UserProgress, topicId: string) => {
+  if (!uid) return currentData;
+
+  // Check if topic already initialized
+  if (currentData.topics[topicId]) {
+    return currentData;
+  }
+
+  const userRef = doc(db, "users", uid);
+  const newTopicProgress = { ...INITIAL_TOPIC_PROGRESS };
+
+  await updateDoc(userRef, {
+    [`topics.${topicId}`]: newTopicProgress
+  });
+
+  const updatedUser = { ...currentData };
+  updatedUser.topics = { ...updatedUser.topics, [topicId]: newTopicProgress };
+
+  console.log(`✅ Initialized topic ${topicId} for user`);
+  return updatedUser;
+};
+
 // --- Lesson Fetching with Lazy Seeding ---
 // This satisfies the requirement to have lessons in Firestore.
 // If a lesson is missing in DB, we generate it locally and save it ("Seed") automatically.
 
-export const fetchLesson = async (dayId: number, forceRegenerate = false): Promise<DailyLesson> => {
-  const lessonRef = doc(db, "lessons", `day_${dayId}`);
+export const fetchLesson = async (topicId: string, dayId: number, forceRegenerate = false): Promise<DailyLesson> => {
+  const lessonRef = doc(db, "lessons", `${topicId}_day_${dayId}`);
 
   try {
     const lessonSnap = await getDoc(lessonRef);
 
     // Check if we should use cached version
     if (lessonSnap.exists() && !forceRegenerate) {
-       console.log(`📚 Loading cached lesson ${dayId} from Firestore`);
+       console.log(`📚 Loading cached lesson ${topicId} Day ${dayId} from Firestore`);
        return lessonSnap.data() as DailyLesson;
     } else {
        // Generate lesson with AI and cache it to Firestore
-       console.log(`🤖 Generating lesson ${dayId} with AI...`);
-       const lessonData = await generateLessonWithAI(dayId);
+       console.log(`🤖 Generating lesson ${topicId} Day ${dayId} with AI...`);
+       const lessonData = await generateLessonWithAI(topicId, dayId);
        await setDoc(lessonRef, lessonData);
-       console.log(`✅ Lesson ${dayId} generated and cached to Firestore`);
+       console.log(`✅ Lesson ${topicId} Day ${dayId} generated and cached to Firestore`);
        return lessonData;
     }
   } catch (err) {
