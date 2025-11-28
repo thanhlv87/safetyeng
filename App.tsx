@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
-import { Tab, UserProgress, DailyLesson, TopicCategory } from './types';
-import { DICTIONARY_TERMS, TOPIC_CATEGORIES, DAY_CATEGORY_MAP } from './services/curriculum';
+import { Tab, UserProgress, DailyLesson } from './types';
+import { DICTIONARY_TERMS } from './services/curriculum';
 import { subscribeToAuth, loginWithEmail, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData } from './services/storage';
 import { generateCertificate } from './services/certificate';
 import { auth } from './services/firebase';
@@ -252,17 +252,9 @@ const ProfileSetup: React.FC<{ user: UserProgress; onComplete: () => void }> = (
 const HomeView: React.FC<{ user: UserProgress }> = ({ user }) => {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<1 | 2>(user.currentDay > 30 ? 2 : 1);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const progressPercent = Math.round((user.completedDays.length / 60) * 100);
 
-  const weeks = phase === 1 ? [1, 2, 3, 4, 5, 6] : [7, 8, 9, 10, 11, 12];
-
-  // Filter days by category if selected
-  const isDayVisible = (dayNum: number): boolean => {
-    if (!selectedCategory) return true;
-    const dayCategory = DAY_CATEGORY_MAP[dayNum];
-    return dayCategory === selectedCategory;
-  }; 
+  const weeks = phase === 1 ? [1, 2, 3, 4, 5, 6] : [7, 8, 9, 10, 11, 12]; 
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -324,56 +316,6 @@ const HomeView: React.FC<{ user: UserProgress }> = ({ user }) => {
         </button>
       </div>
 
-      {/* Topic Category Filter */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50">
-        <h3 className="font-bold text-lg mb-3 flex items-center text-gray-800">
-          <i className="fas fa-filter mr-2 text-safetyBlue"></i>
-          Lọc theo chủ đề
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`p-3 rounded-lg text-center transition-all ${
-              !selectedCategory
-                ? 'bg-safetyBlue text-white shadow-md scale-105'
-                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-            }`}
-          >
-            <i className="fas fa-th-large text-xl mb-1 block"></i>
-            <span className="text-xs font-semibold">Tất cả</span>
-          </button>
-          {TOPIC_CATEGORIES.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
-              className={`p-3 rounded-lg text-center transition-all ${
-                selectedCategory === category.id
-                  ? `${category.color} text-white shadow-md scale-105`
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
-              title={category.description}
-            >
-              <i className={`fas ${category.icon} text-xl mb-1 block`}></i>
-              <span className="text-xs font-semibold block">{category.nameVietnamese}</span>
-            </button>
-          ))}
-        </div>
-        {selectedCategory && (
-          <div className="mt-3 p-3 bg-blue-100 text-blue-800 rounded text-sm flex items-center justify-between">
-            <span>
-              <i className="fas fa-info-circle mr-2"></i>
-              Đang hiển thị: <strong>{TOPIC_CATEGORIES.find(c => c.id === selectedCategory)?.nameVietnamese}</strong>
-            </span>
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className="text-xs underline hover:no-underline"
-            >
-              Xóa bộ lọc
-            </button>
-          </div>
-        )}
-      </Card>
-
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {weeks.map((weekIdx, i) => {
@@ -390,25 +332,18 @@ const HomeView: React.FC<{ user: UserProgress }> = ({ user }) => {
                   const isCompleted = user.completedDays.includes(dayNum);
                   const isLocked = dayNum > user.currentDay;
                   const isCurrent = dayNum === user.currentDay;
-                  const isVisible = isDayVisible(dayNum);
 
                   let bgClass = "bg-gray-100 text-gray-400"; // Locked
                   if (isCompleted) bgClass = isReview ? "bg-green-600 text-white" : "bg-green-100 text-green-700 border border-green-200";
                   if (isCurrent) bgClass = "bg-safetyYellow text-safetyBlue font-bold shadow-md ring-2 ring-safetyBlue ring-offset-2";
                   if (!isLocked && !isCompleted && !isCurrent) bgClass = isReview ? "bg-red-50 border border-red-200 text-red-600" : "bg-white border border-gray-300 text-gray-700 hover:bg-blue-50";
 
-                  // Apply filter styling
-                  if (!isVisible) {
-                    bgClass = "bg-gray-50 text-gray-300 opacity-30";
-                  }
-
                   return (
                     <button
                       key={dayNum}
-                      disabled={isLocked || !isVisible}
+                      disabled={isLocked}
                       onClick={() => navigate(`/day/${dayNum}`)}
                       className={`h-10 w-full rounded-lg flex flex-col items-center justify-center text-sm transition-all ${bgClass}`}
-                      title={!isVisible ? 'Ngày này không thuộc chủ đề đã chọn' : ''}
                     >
                       {isCompleted ? <i className="fas fa-check"></i> : (
                         <>
