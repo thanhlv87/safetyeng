@@ -1249,17 +1249,33 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Load saved vocabulary on mount
   useEffect(() => {
     const loadVocabulary = async () => {
-      const { loadAllVocabulary } = await import('./services/storage');
-      const savedTerms = await loadAllVocabulary();
-      const existingTerms = new Set(DICTIONARY_TERMS.map(t => t.term.toLowerCase()));
-      const uniqueSavedTerms = savedTerms.filter(
-        t => !existingTerms.has(t.term.toLowerCase())
-      );
-      setDictionaryTerms([...DICTIONARY_TERMS, ...uniqueSavedTerms]);
+      setLoading(true);
+      try {
+        console.log(`📚 Initial DICTIONARY_TERMS count: ${DICTIONARY_TERMS.length}`);
+
+        const { loadAllVocabulary } = await import('./services/storage');
+        const savedTerms = await loadAllVocabulary();
+        console.log(`💾 Loaded ${savedTerms.length} saved terms from Firestore`);
+
+        const existingTerms = new Set(DICTIONARY_TERMS.map(t => t.term.toLowerCase()));
+        const uniqueSavedTerms = savedTerms.filter(
+          t => !existingTerms.has(t.term.toLowerCase())
+        );
+
+        const allTerms = [...DICTIONARY_TERMS, ...uniqueSavedTerms];
+        console.log(`✅ Total flashcard terms: ${allTerms.length}`);
+
+        setDictionaryTerms(allTerms);
+      } catch (error) {
+        console.error("Failed to load vocabulary:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     loadVocabulary();
   }, []);
@@ -1346,11 +1362,30 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-4xl text-safetyBlue mb-4"></i>
+          <p className="text-gray-600">Loading flashcards...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!currentCard) {
     return (
       <div className="max-w-2xl mx-auto p-4">
         <Card>
-          <p className="text-center text-gray-600">No flashcards available for this topic. Please select a different topic.</p>
+          <div className="text-center py-8">
+            <i className="fas fa-exclamation-circle text-4xl text-gray-300 mb-4"></i>
+            <p className="text-gray-600 mb-4">No flashcards available for this topic.</p>
+            <p className="text-sm text-gray-500">Total terms loaded: {dictionaryTerms.length}</p>
+            <p className="text-sm text-gray-500">Filtered terms: {filteredTerms.length}</p>
+            <Button variant="primary" onClick={() => setSelectedTopic('all')} className="mt-4">
+              View All Topics
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -1383,42 +1418,47 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
         ></div>
       </div>
 
-      {/* Topic Filter */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => { setSelectedTopic('all'); setCurrentIndex(0); }}
-          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-            selectedTopic === 'all'
-              ? 'bg-safetyBlue text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
-          All Topics
-        </button>
-        {TOPIC_CATEGORIES.map(topic => (
+      {/* Topic Filter - Horizontal scroll on mobile */}
+      <div className="overflow-x-auto no-scrollbar pb-2">
+        <div className="flex gap-2 min-w-max md:flex-wrap">
           <button
-            key={topic.id}
-            onClick={() => { setSelectedTopic(topic.id); setCurrentIndex(0); }}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-              selectedTopic === topic.id
-                ? 'bg-safetyBlue text-white'
+            onClick={() => { setSelectedTopic('all'); setCurrentIndex(0); }}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap tap-target ${
+              selectedTopic === 'all'
+                ? 'bg-safetyBlue text-white shadow-md'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            {topic.icon} {topic.name}
+            All Topics ({dictionaryTerms.length})
           </button>
-        ))}
+          {TOPIC_CATEGORIES.map(topic => {
+            const count = dictionaryTerms.filter(t => t.topicId === topic.id).length;
+            return (
+              <button
+                key={topic.id}
+                onClick={() => { setSelectedTopic(topic.id); setCurrentIndex(0); }}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap tap-target ${
+                  selectedTopic === topic.id
+                    ? 'bg-safetyBlue text-white shadow-md'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <span>{topic.icon}</span> <span className="ml-1">{topic.name}</span> <span className="text-xs opacity-75">({count})</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Flashcard */}
+      {/* Flashcard - Responsive height */}
       <div
-        className="relative min-h-[400px] perspective-1000"
+        className="relative min-h-[350px] md:min-h-[450px] perspective-1000 touch-none"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
         <div
-          className={`relative w-full h-[400px] transition-all duration-300 transform-style-3d cursor-pointer ${
+          className={`relative w-full h-[350px] md:h-[450px] transition-all duration-300 transform-style-3d cursor-pointer ${
             isFlipped ? 'rotate-y-180' : ''
           }`}
           style={{
@@ -1429,13 +1469,13 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
         >
           {/* Front of card - Term */}
           <div className={`absolute w-full h-full backface-hidden ${isFlipped ? 'hidden' : ''}`}>
-            <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyBlue to-blue-700 text-white shadow-2xl">
+            <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyBlue to-blue-700 text-white shadow-2xl px-4">
               <div className="text-xs uppercase tracking-wider mb-2 opacity-80">
                 {currentCard.topicId && TOPIC_CATEGORIES.find(t => t.id === currentCard.topicId)?.name}
               </div>
-              <h3 className="text-4xl font-bold mb-4 text-center">{currentCard.term}</h3>
+              <h3 className="text-3xl md:text-4xl font-bold mb-3 md:mb-4 text-center px-2">{currentCard.term}</h3>
               {currentCard.ipa && (
-                <p className="text-lg opacity-90 mb-4">{currentCard.ipa}</p>
+                <p className="text-base md:text-lg opacity-90 mb-3 md:mb-4">{currentCard.ipa}</p>
               )}
               {currentCard.level && (
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
@@ -1446,78 +1486,102 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
                   {currentCard.level}
                 </span>
               )}
-              <p className="text-sm mt-6 opacity-70">Tap to flip</p>
+              <p className="text-xs md:text-sm mt-4 md:mt-6 opacity-70">
+                <i className="fas fa-hand-pointer mr-2"></i>Tap to flip
+              </p>
             </Card>
           </div>
 
           {/* Back of card - Definition */}
           <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${!isFlipped ? 'hidden' : ''}`}>
-            <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyYellow to-yellow-300 shadow-2xl">
-              <div className="text-center px-6">
-                <h4 className="text-2xl font-bold text-safetyBlue mb-4">Definition</h4>
-                <p className="text-lg text-gray-800 mb-6">{currentCard.def}</p>
+            <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyYellow to-yellow-300 shadow-2xl px-4">
+              <div className="text-center px-4 md:px-6">
+                <h4 className="text-xl md:text-2xl font-bold text-safetyBlue mb-3 md:mb-4">Definition</h4>
+                <p className="text-base md:text-lg text-gray-800 mb-4 md:mb-6">{currentCard.def}</p>
 
                 {currentCard.vietnamese && (
-                  <div className="mt-4">
+                  <div className="mt-3 md:mt-4">
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowVietnamese(!showVietnamese); }}
-                      className="text-sm text-safetyBlue hover:underline mb-2"
+                      className="text-sm tap-target px-4 py-2 rounded-lg bg-white bg-opacity-50 text-safetyBlue font-semibold hover:bg-opacity-70 transition-all mb-2"
                     >
-                      {showVietnamese ? 'Hide' : 'Show'} Vietnamese
+                      <i className="fas fa-language mr-2"></i>
+                      {showVietnamese ? 'Ẩn tiếng Việt' : 'Hiện tiếng Việt'}
                     </button>
                     {showVietnamese && (
-                      <p className="text-md text-gray-700 italic">{currentCard.vietnamese}</p>
+                      <p className="text-sm md:text-base text-gray-700 font-medium bg-white bg-opacity-70 p-3 rounded-lg">{currentCard.vietnamese}</p>
                     )}
                   </div>
                 )}
               </div>
-              <p className="text-sm mt-6 text-gray-600">Tap to flip back</p>
+              <p className="text-xs md:text-sm mt-4 md:mt-6 text-gray-600">
+                <i className="fas fa-hand-pointer mr-2"></i>Tap to flip back
+              </p>
             </Card>
           </div>
         </div>
       </div>
 
-      {/* Instructions */}
-      <div className="bg-blue-50 rounded-lg p-4 text-sm text-gray-700">
-        <p className="font-semibold mb-2">How to use:</p>
+      {/* Instructions - Hidden on mobile to save space */}
+      <div className="bg-blue-50 rounded-lg p-3 md:p-4 text-xs md:text-sm text-gray-700">
+        <p className="font-semibold mb-2 flex items-center gap-2">
+          <i className="fas fa-info-circle"></i>
+          <span>How to use:</span>
+        </p>
         <ul className="space-y-1">
-          <li>• <strong>Tap card</strong> to flip and see definition</li>
-          <li>• <strong>Swipe right →</strong> if you know this word</li>
-          <li>• <strong>Swipe left ←</strong> to review it later</li>
-          <li>• Use buttons below on desktop</li>
+          <li>• <strong>Tap card</strong> to flip</li>
+          <li>• <strong>Swipe right →</strong> "I know this"</li>
+          <li>• <strong>Swipe left ←</strong> "Review later"</li>
+          <li className="hidden md:block">• Use buttons below on desktop</li>
         </ul>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex justify-between items-center gap-4">
-        <Button variant="outline" onClick={goToPrevious} disabled={currentIndex === 0}>
-          <i className="fas fa-chevron-left"></i>
-          Previous
-        </Button>
+      {/* Action Buttons - Mobile optimized */}
+      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 md:gap-4">
+        {/* Navigation buttons - smaller on mobile */}
+        <div className="flex gap-2 md:gap-4">
+          <Button
+            variant="outline"
+            onClick={goToPrevious}
+            disabled={currentIndex === 0}
+            className="flex-1 md:flex-none tap-target"
+          >
+            <i className="fas fa-chevron-left md:mr-2"></i>
+            <span className="hidden md:inline">Previous</span>
+          </Button>
 
-        <div className="flex gap-4">
+          <Button
+            variant="outline"
+            onClick={goToNext}
+            disabled={currentIndex === filteredTerms.length - 1}
+            className="flex-1 md:flex-none tap-target"
+          >
+            <span className="hidden md:inline">Next</span>
+            <i className="fas fa-chevron-right md:ml-2"></i>
+          </Button>
+        </div>
+
+        {/* Main action buttons - full width on mobile */}
+        <div className="flex gap-2 md:gap-4 flex-1 md:flex-initial">
           <Button
             variant="danger"
             onClick={handleReview}
-            className="flex-1"
+            className="flex-1 tap-target"
           >
-            <i className="fas fa-redo"></i>
-            Review Later
+            <i className="fas fa-redo md:mr-2"></i>
+            <span className="hidden md:inline">Review</span>
+            <span className="md:hidden">❌</span>
           </Button>
           <Button
             variant="success"
             onClick={handleLearned}
-            className="flex-1"
+            className="flex-1 tap-target"
           >
-            <i className="fas fa-check"></i>
-            I Know This
+            <i className="fas fa-check md:mr-2"></i>
+            <span className="hidden md:inline">Know This</span>
+            <span className="md:hidden">✓</span>
           </Button>
         </div>
-
-        <Button variant="outline" onClick={goToNext} disabled={currentIndex === filteredTerms.length - 1}>
-          Next
-          <i className="fas fa-chevron-right"></i>
-        </Button>
       </div>
 
       {/* Stats */}
