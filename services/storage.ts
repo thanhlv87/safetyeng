@@ -1,4 +1,4 @@
-import { UserProgress, DailyLesson, TopicProgress, DictionaryTerm } from '../types';
+import { UserProgress, DailyLesson, TopicProgress, DictionaryTerm, FlashcardProgress } from '../types';
 import { auth, db } from './firebase';
 import { signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection } from "firebase/firestore";
@@ -54,7 +54,8 @@ export const subscribeToAuth = (callback: (user: UserProgress | null) => void) =
           company: data.company,
           streak: data.streak || 0,
           lastLoginDate: data.lastLoginDate || new Date().toISOString(),
-          topics: topics
+          topics: topics,
+          flashcards: data.flashcards || {}
         };
 
         // Only set photoURL if it exists
@@ -311,5 +312,72 @@ export const loadAllVocabulary = async (): Promise<DictionaryTerm[]> => {
   } catch (error) {
     console.error("Failed to load all vocabulary:", error);
     return [];
+  }
+};
+
+// --- Flashcard Progress Management ---
+
+// Mark a term as learned
+export const markTermAsLearned = async (uid: string, topicId: string, term: string): Promise<void> => {
+  try {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const flashcards = data.flashcards || {};
+      const topicProgress = flashcards[topicId] || { learned: [], reviewing: [], lastStudied: {} };
+
+      // Add to learned if not already there
+      if (!topicProgress.learned.includes(term)) {
+        topicProgress.learned.push(term);
+      }
+
+      // Remove from reviewing if present
+      topicProgress.reviewing = topicProgress.reviewing.filter((t: string) => t !== term);
+
+      // Update last studied timestamp
+      topicProgress.lastStudied[term] = new Date().toISOString();
+
+      await updateDoc(userRef, {
+        [`flashcards.${topicId}`]: topicProgress
+      });
+
+      console.log(`✅ Marked "${term}" as learned in ${topicId}`);
+    }
+  } catch (error) {
+    console.error("Failed to mark term as learned:", error);
+    throw error;
+  }
+};
+
+// Mark a term for review
+export const markTermForReview = async (uid: string, topicId: string, term: string): Promise<void> => {
+  try {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const flashcards = data.flashcards || {};
+      const topicProgress = flashcards[topicId] || { learned: [], reviewing: [], lastStudied: {} };
+
+      // Add to reviewing if not already there
+      if (!topicProgress.reviewing.includes(term)) {
+        topicProgress.reviewing.push(term);
+      }
+
+      // Update last studied timestamp
+      topicProgress.lastStudied[term] = new Date().toISOString();
+
+      await updateDoc(userRef, {
+        [`flashcards.${topicId}`]: topicProgress
+      });
+
+      console.log(`✅ Marked "${term}" for review in ${topicId}`);
+    }
+  } catch (error) {
+    console.error("Failed to mark term for review:", error);
+    throw error;
   }
 };

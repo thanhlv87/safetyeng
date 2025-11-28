@@ -1240,6 +1240,310 @@ const DictionaryView: React.FC = () => {
   );
 };
 
+const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
+  const [dictionaryTerms, setDictionaryTerms] = useState(DICTIONARY_TERMS);
+  const [selectedTopic, setSelectedTopic] = useState<string | 'all'>('all');
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [showVietnamese, setShowVietnamese] = useState(false);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+
+  // Load saved vocabulary on mount
+  useEffect(() => {
+    const loadVocabulary = async () => {
+      const { loadAllVocabulary } = await import('./services/storage');
+      const savedTerms = await loadAllVocabulary();
+      const existingTerms = new Set(DICTIONARY_TERMS.map(t => t.term.toLowerCase()));
+      const uniqueSavedTerms = savedTerms.filter(
+        t => !existingTerms.has(t.term.toLowerCase())
+      );
+      setDictionaryTerms([...DICTIONARY_TERMS, ...uniqueSavedTerms]);
+    };
+    loadVocabulary();
+  }, []);
+
+  // Filter terms by selected topic
+  const filteredTerms = selectedTopic === 'all'
+    ? dictionaryTerms
+    : dictionaryTerms.filter(t => t.topicId === selectedTopic);
+
+  const currentCard = filteredTerms[currentIndex];
+  const progress = Math.round(((currentIndex + 1) / filteredTerms.length) * 100);
+
+  // Swipe detection
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe) {
+      handleReview();
+    } else if (isRightSwipe) {
+      handleLearned();
+    }
+  };
+
+  const handleLearned = async () => {
+    setSwipeDirection('right');
+
+    // Save to Firestore
+    if (auth.currentUser && currentCard.topicId) {
+      const { markTermAsLearned } = await import('./services/storage');
+      await markTermAsLearned(auth.currentUser.uid, currentCard.topicId, currentCard.term);
+    }
+
+    setTimeout(() => {
+      goToNext();
+      setSwipeDirection(null);
+    }, 300);
+  };
+
+  const handleReview = async () => {
+    setSwipeDirection('left');
+
+    // Save to Firestore
+    if (auth.currentUser && currentCard.topicId) {
+      const { markTermForReview } = await import('./services/storage');
+      await markTermForReview(auth.currentUser.uid, currentCard.topicId, currentCard.term);
+    }
+
+    setTimeout(() => {
+      goToNext();
+      setSwipeDirection(null);
+    }, 300);
+  };
+
+  const goToNext = () => {
+    setIsFlipped(false);
+    setShowVietnamese(false);
+    if (currentIndex < filteredTerms.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      setCurrentIndex(0); // Loop back to start
+    }
+  };
+
+  const goToPrevious = () => {
+    setIsFlipped(false);
+    setShowVietnamese(false);
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  if (!currentCard) {
+    return (
+      <div className="max-w-2xl mx-auto p-4">
+        <Card>
+          <p className="text-center text-gray-600">No flashcards available for this topic. Please select a different topic.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  const cardTransform = swipeDirection === 'right'
+    ? 'translateX(120%) rotate(15deg)'
+    : swipeDirection === 'left'
+    ? 'translateX(-120%) rotate(-15deg)'
+    : 'translateX(0) rotate(0)';
+
+  return (
+    <div className="max-w-2xl mx-auto p-4 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-safetyBlue flex items-center gap-2">
+          <i className="fas fa-layer-group"></i>
+          Flashcards
+        </h2>
+        <div className="text-sm text-gray-600">
+          {currentIndex + 1} / {filteredTerms.length}
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div
+          className="bg-safetyBlue h-2 rounded-full transition-all duration-300"
+          style={{ width: `${progress}%` }}
+        ></div>
+      </div>
+
+      {/* Topic Filter */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => { setSelectedTopic('all'); setCurrentIndex(0); }}
+          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+            selectedTopic === 'all'
+              ? 'bg-safetyBlue text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          All Topics
+        </button>
+        {TOPIC_CATEGORIES.map(topic => (
+          <button
+            key={topic.id}
+            onClick={() => { setSelectedTopic(topic.id); setCurrentIndex(0); }}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              selectedTopic === topic.id
+                ? 'bg-safetyBlue text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {topic.icon} {topic.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Flashcard */}
+      <div
+        className="relative min-h-[400px] perspective-1000"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div
+          className={`relative w-full h-[400px] transition-all duration-300 transform-style-3d cursor-pointer ${
+            isFlipped ? 'rotate-y-180' : ''
+          }`}
+          style={{
+            transform: cardTransform,
+            transition: swipeDirection ? 'transform 0.3s ease-out' : 'transform 0.6s'
+          }}
+          onClick={() => setIsFlipped(!isFlipped)}
+        >
+          {/* Front of card - Term */}
+          <div className={`absolute w-full h-full backface-hidden ${isFlipped ? 'hidden' : ''}`}>
+            <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyBlue to-blue-700 text-white shadow-2xl">
+              <div className="text-xs uppercase tracking-wider mb-2 opacity-80">
+                {currentCard.topicId && TOPIC_CATEGORIES.find(t => t.id === currentCard.topicId)?.name}
+              </div>
+              <h3 className="text-4xl font-bold mb-4 text-center">{currentCard.term}</h3>
+              {currentCard.ipa && (
+                <p className="text-lg opacity-90 mb-4">{currentCard.ipa}</p>
+              )}
+              {currentCard.level && (
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
+                  currentCard.level === 'basic' ? 'bg-green-500' :
+                  currentCard.level === 'intermediate' ? 'bg-yellow-500' :
+                  'bg-red-500'
+                } bg-opacity-30`}>
+                  {currentCard.level}
+                </span>
+              )}
+              <p className="text-sm mt-6 opacity-70">Tap to flip</p>
+            </Card>
+          </div>
+
+          {/* Back of card - Definition */}
+          <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${!isFlipped ? 'hidden' : ''}`}>
+            <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyYellow to-yellow-300 shadow-2xl">
+              <div className="text-center px-6">
+                <h4 className="text-2xl font-bold text-safetyBlue mb-4">Definition</h4>
+                <p className="text-lg text-gray-800 mb-6">{currentCard.def}</p>
+
+                {currentCard.vietnamese && (
+                  <div className="mt-4">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowVietnamese(!showVietnamese); }}
+                      className="text-sm text-safetyBlue hover:underline mb-2"
+                    >
+                      {showVietnamese ? 'Hide' : 'Show'} Vietnamese
+                    </button>
+                    {showVietnamese && (
+                      <p className="text-md text-gray-700 italic">{currentCard.vietnamese}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="text-sm mt-6 text-gray-600">Tap to flip back</p>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div className="bg-blue-50 rounded-lg p-4 text-sm text-gray-700">
+        <p className="font-semibold mb-2">How to use:</p>
+        <ul className="space-y-1">
+          <li>• <strong>Tap card</strong> to flip and see definition</li>
+          <li>• <strong>Swipe right →</strong> if you know this word</li>
+          <li>• <strong>Swipe left ←</strong> to review it later</li>
+          <li>• Use buttons below on desktop</li>
+        </ul>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-between items-center gap-4">
+        <Button variant="outline" onClick={goToPrevious} disabled={currentIndex === 0}>
+          <i className="fas fa-chevron-left"></i>
+          Previous
+        </Button>
+
+        <div className="flex gap-4">
+          <Button
+            variant="danger"
+            onClick={handleReview}
+            className="flex-1"
+          >
+            <i className="fas fa-redo"></i>
+            Review Later
+          </Button>
+          <Button
+            variant="success"
+            onClick={handleLearned}
+            className="flex-1"
+          >
+            <i className="fas fa-check"></i>
+            I Know This
+          </Button>
+        </div>
+
+        <Button variant="outline" onClick={goToNext} disabled={currentIndex === filteredTerms.length - 1}>
+          Next
+          <i className="fas fa-chevron-right"></i>
+        </Button>
+      </div>
+
+      {/* Stats */}
+      {user.flashcards && selectedTopic !== 'all' && (
+        <Card className="bg-green-50">
+          <h3 className="font-semibold text-green-800 mb-2">Your Progress</h3>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-green-600">
+                {user.flashcards[selectedTopic]?.learned.length || 0}
+              </p>
+              <p className="text-sm text-gray-600">Learned</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-yellow-600">
+                {user.flashcards[selectedTopic]?.reviewing.length || 0}
+              </p>
+              <p className="text-sm text-gray-600">Reviewing</p>
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+};
+
 const CertificateView: React.FC<{ user: UserProgress }> = ({ user }) => {
   // Calculate total progress across ALL topics
   const totalPossibleDays = TOPIC_CATEGORIES.length * 60; // 6 topics × 60 days = 360 days
@@ -1354,6 +1658,7 @@ const BottomNav: React.FC = () => {
   const navItems = [
     { id: 'topics', icon: 'fa-layer-group', label: 'Topics', path: '/' },
     { id: Tab.DICTIONARY, icon: 'fa-book', label: 'Dict', path: '/dictionary' },
+    { id: Tab.FLASHCARD, icon: 'fa-clone', label: 'Cards', path: '/flashcards' },
     { id: Tab.PROFILE, icon: 'fa-certificate', label: 'Cert', path: '/certificate' },
   ];
   return (
@@ -1428,6 +1733,7 @@ const App: React.FC = () => {
             <nav className="flex gap-6">
               <Link to="/" className="font-medium hover:text-safetyBlue">Dashboard</Link>
               <Link to="/dictionary" className="font-medium hover:text-safetyBlue">Dictionary</Link>
+              <Link to="/flashcards" className="font-medium hover:text-safetyBlue">Flashcards</Link>
               <Link to="/certificate" className="font-medium hover:text-safetyBlue">Certificate</Link>
             </nav>
             <div className="flex items-center gap-3">
@@ -1462,6 +1768,7 @@ const App: React.FC = () => {
             <Route path="/topics/:topicId" element={<TopicDetailView user={user} onUpdate={setUser} />} />
             <Route path="/topics/:topicId/day/:id" element={<LessonView user={user} onUpdate={setUser} />} />
             <Route path="/dictionary" element={<DictionaryView />} />
+            <Route path="/flashcards" element={<FlashcardView user={user} />} />
             <Route path="/certificate" element={<CertificateView user={user} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

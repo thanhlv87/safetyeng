@@ -56,6 +56,12 @@ export interface TopicProgress {
   quizScores: Record<number, number>; // Day ID -> Score percentage
 }
 
+export interface FlashcardProgress {
+  learned: string[]; // Term names marked as learned
+  reviewing: string[]; // Terms still under review
+  lastStudied: Record<string, string>; // term -> last studied date
+}
+
 export interface UserProgress {
   isLoggedIn: boolean;
   name: string;
@@ -66,6 +72,7 @@ export interface UserProgress {
   streak: number;
   lastLoginDate: string;
   topics: Record<string, TopicProgress>; // topicId -> progress for that topic
+  flashcards?: Record<string, FlashcardProgress>; // topicId -> flashcard progress
 }
 
 export interface DictionaryTerm {
@@ -81,6 +88,7 @@ export enum Tab {
   HOME = 'HOME',
   LESSON = 'LESSON',
   DICTIONARY = 'DICTIONARY',
+  FLASHCARD = 'FLASHCARD',
   TEST = 'TEST',
   PROFILE = 'PROFILE'
 }
