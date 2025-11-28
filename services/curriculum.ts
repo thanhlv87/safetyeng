@@ -1,4 +1,82 @@
-import { DailyLesson, Vocab, DialogueLine, QuizQuestion, LessonScenario } from '../types';
+import { DailyLesson, Vocab, DialogueLine, QuizQuestion, LessonScenario, TopicCategory } from '../types';
+
+// Topic Categories for daily lessons
+export const TOPIC_CATEGORIES: TopicCategory[] = [
+  {
+    id: 'general-safety',
+    name: 'General Safety',
+    nameVietnamese: 'An toàn chung',
+    icon: 'fa-hard-hat',
+    color: 'bg-blue-500',
+    description: 'Basic safety concepts, signs, PPE, and workplace rules'
+  },
+  {
+    id: 'chemicals',
+    name: 'Chemical Safety',
+    nameVietnamese: 'An toàn hóa chất',
+    icon: 'fa-flask',
+    color: 'bg-purple-500',
+    description: 'Chemical labels, handling, and storage safety'
+  },
+  {
+    id: 'electrical',
+    name: 'Electrical Safety',
+    nameVietnamese: 'An toàn điện',
+    icon: 'fa-bolt',
+    color: 'bg-yellow-500',
+    description: 'Electrical hazards, LOTO, and power equipment'
+  },
+  {
+    id: 'height-work',
+    name: 'Work at Height',
+    nameVietnamese: 'Làm việc trên cao',
+    icon: 'fa-user-hard-hat',
+    color: 'bg-red-500',
+    description: 'Scaffolding, ladders, fall protection, and harness safety'
+  },
+  {
+    id: 'equipment',
+    name: 'Equipment & Machinery',
+    nameVietnamese: 'Thiết bị & Máy móc',
+    icon: 'fa-cogs',
+    color: 'bg-gray-600',
+    description: 'Tools, machines, cranes, and forklifts'
+  },
+  {
+    id: 'emergency',
+    name: 'Emergency Response',
+    nameVietnamese: 'Ứng phó khẩn cấp',
+    icon: 'fa-ambulance',
+    color: 'bg-green-600',
+    description: 'First aid, fire safety, and emergency procedures'
+  }
+];
+
+// Map days to categories
+export const DAY_CATEGORY_MAP: Record<number, string> = {
+  // General Safety (Days 1-4, 6-9, 16-19, 31-34)
+  1: 'general-safety', 2: 'general-safety', 3: 'general-safety', 4: 'general-safety',
+  6: 'general-safety', 7: 'general-safety', 8: 'general-safety', 9: 'general-safety',
+  16: 'emergency', 17: 'emergency', 26: 'emergency', 27: 'emergency', 28: 'emergency', 29: 'emergency',
+  31: 'general-safety', 32: 'general-safety', 33: 'general-safety', 34: 'general-safety',
+
+  // Chemicals (Days 21-24)
+  21: 'chemicals', 22: 'chemicals', 23: 'chemicals', 24: 'chemicals',
+
+  // Electrical (Days 18-19)
+  18: 'electrical', 19: 'electrical', 41: 'electrical', 42: 'electrical', 43: 'electrical', 44: 'electrical',
+
+  // Height Work (Days 36-39)
+  36: 'height-work', 37: 'height-work', 38: 'height-work', 39: 'height-work',
+
+  // Equipment (Days 11-14, 46-49, 51-54)
+  11: 'equipment', 12: 'equipment', 13: 'equipment', 14: 'equipment',
+  46: 'equipment', 47: 'equipment', 48: 'equipment', 49: 'equipment',
+  51: 'equipment', 52: 'equipment', 53: 'equipment', 54: 'equipment',
+
+  // Confined Space (Days 46-49)
+  // Review days remain uncategorized (every 5th day)
+};
 
 // 60-Day Roadmap for Beginners
 // Days 1-30: Foundation (Words, Signs, Basic PPE, Simple Commands)

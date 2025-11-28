@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
-import { Tab, UserProgress, DailyLesson } from './types';
-import { DICTIONARY_TERMS } from './services/curriculum';
+import { Tab, UserProgress, DailyLesson, TopicCategory } from './types';
+import { DICTIONARY_TERMS, TOPIC_CATEGORIES, DAY_CATEGORY_MAP } from './services/curriculum';
 import { subscribeToAuth, loginWithEmail, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData } from './services/storage';
 import { generateCertificate } from './services/certificate';
 import { auth } from './services/firebase';
@@ -252,9 +252,17 @@ const ProfileSetup: React.FC<{ user: UserProgress; onComplete: () => void }> = (
 const HomeView: React.FC<{ user: UserProgress }> = ({ user }) => {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<1 | 2>(user.currentDay > 30 ? 2 : 1);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const progressPercent = Math.round((user.completedDays.length / 60) * 100);
 
-  const weeks = phase === 1 ? [1, 2, 3, 4, 5, 6] : [7, 8, 9, 10, 11, 12]; 
+  const weeks = phase === 1 ? [1, 2, 3, 4, 5, 6] : [7, 8, 9, 10, 11, 12];
+
+  // Filter days by category if selected
+  const isDayVisible = (dayNum: number): boolean => {
+    if (!selectedCategory) return true;
+    const dayCategory = DAY_CATEGORY_MAP[dayNum];
+    return dayCategory === selectedCategory;
+  }; 
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -302,19 +310,69 @@ const HomeView: React.FC<{ user: UserProgress }> = ({ user }) => {
 
       {/* Phase Tabs */}
       <div className="flex rounded-lg bg-gray-200 p-1">
-        <button 
+        <button
           onClick={() => setPhase(1)}
           className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${phase === 1 ? 'bg-white shadow text-safetyBlue' : 'text-gray-500 hover:text-gray-700'}`}
         >
           Phase 1: Foundation (Days 1-30)
         </button>
-        <button 
+        <button
           onClick={() => setPhase(2)}
           className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${phase === 2 ? 'bg-white shadow text-safetyBlue' : 'text-gray-500 hover:text-gray-700'}`}
         >
           Phase 2: Application (Days 31-60)
         </button>
       </div>
+
+      {/* Topic Category Filter */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50">
+        <h3 className="font-bold text-lg mb-3 flex items-center text-gray-800">
+          <i className="fas fa-filter mr-2 text-safetyBlue"></i>
+          Lọc theo chủ đề
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className={`p-3 rounded-lg text-center transition-all ${
+              !selectedCategory
+                ? 'bg-safetyBlue text-white shadow-md scale-105'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            }`}
+          >
+            <i className="fas fa-th-large text-xl mb-1 block"></i>
+            <span className="text-xs font-semibold">Tất cả</span>
+          </button>
+          {TOPIC_CATEGORIES.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`p-3 rounded-lg text-center transition-all ${
+                selectedCategory === category.id
+                  ? `${category.color} text-white shadow-md scale-105`
+                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              }`}
+              title={category.description}
+            >
+              <i className={`fas ${category.icon} text-xl mb-1 block`}></i>
+              <span className="text-xs font-semibold block">{category.nameVietnamese}</span>
+            </button>
+          ))}
+        </div>
+        {selectedCategory && (
+          <div className="mt-3 p-3 bg-blue-100 text-blue-800 rounded text-sm flex items-center justify-between">
+            <span>
+              <i className="fas fa-info-circle mr-2"></i>
+              Đang hiển thị: <strong>{TOPIC_CATEGORIES.find(c => c.id === selectedCategory)?.nameVietnamese}</strong>
+            </span>
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className="text-xs underline hover:no-underline"
+            >
+              Xóa bộ lọc
+            </button>
+          </div>
+        )}
+      </Card>
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -332,18 +390,25 @@ const HomeView: React.FC<{ user: UserProgress }> = ({ user }) => {
                   const isCompleted = user.completedDays.includes(dayNum);
                   const isLocked = dayNum > user.currentDay;
                   const isCurrent = dayNum === user.currentDay;
+                  const isVisible = isDayVisible(dayNum);
 
                   let bgClass = "bg-gray-100 text-gray-400"; // Locked
                   if (isCompleted) bgClass = isReview ? "bg-green-600 text-white" : "bg-green-100 text-green-700 border border-green-200";
                   if (isCurrent) bgClass = "bg-safetyYellow text-safetyBlue font-bold shadow-md ring-2 ring-safetyBlue ring-offset-2";
                   if (!isLocked && !isCompleted && !isCurrent) bgClass = isReview ? "bg-red-50 border border-red-200 text-red-600" : "bg-white border border-gray-300 text-gray-700 hover:bg-blue-50";
 
+                  // Apply filter styling
+                  if (!isVisible) {
+                    bgClass = "bg-gray-50 text-gray-300 opacity-30";
+                  }
+
                   return (
                     <button
                       key={dayNum}
-                      disabled={isLocked}
+                      disabled={isLocked || !isVisible}
                       onClick={() => navigate(`/day/${dayNum}`)}
                       className={`h-10 w-full rounded-lg flex flex-col items-center justify-center text-sm transition-all ${bgClass}`}
+                      title={!isVisible ? 'Ngày này không thuộc chủ đề đã chọn' : ''}
                     >
                       {isCompleted ? <i className="fas fa-check"></i> : (
                         <>
@@ -557,7 +622,24 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
             </div>
             <h3 className="text-xl font-bold mb-2">{lesson.scenario.title}</h3>
             <p className="text-gray-700 leading-relaxed mb-4">{lesson.scenario.description}</p>
-            {isReview && <div className="p-3 bg-red-100 text-red-700 text-sm font-bold border border-red-300 rounded">WARNING: This is a graded test. You need 80% to pass.</div>}
+            {lesson.scenario.vietnamese && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowVietnamese((prev: Record<string, boolean>) => ({ ...prev, 'scenario': !prev['scenario'] }))}
+                  className="text-sm text-gray-500 hover:text-safetyBlue flex items-center gap-1"
+                >
+                  <i className="fas fa-language"></i>
+                  {showVietnamese['scenario'] ? 'Ẩn bản dịch' : 'Hiện bản dịch'}
+                </button>
+                {showVietnamese['scenario'] && (
+                  <div className="text-sm text-green-700 bg-green-50 p-3 rounded mt-2 border border-green-200">
+                    <p className="font-bold mb-1">🇻🇳 {lesson.scenario.titleVietnamese || 'Tình huống an toàn'}</p>
+                    <p>{lesson.scenario.vietnamese}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {isReview && <div className="p-3 bg-red-100 text-red-700 text-sm font-bold border border-red-300 rounded mt-4">WARNING: This is a graded test. You need 80% to pass.</div>}
           </Card>
           <div className="flex justify-end mt-6">
             <Button onClick={() => setStep('quiz')}>{isReview ? 'Start Exam' : 'Start Quiz'} <i className="fas fa-arrow-right ml-2"></i></Button>
@@ -606,13 +688,57 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
            </div>
            <h2 className="text-3xl font-bold text-gray-800">{testFailed ? 'Test Failed' : 'Day Completed!'}</h2>
            <p className="text-gray-600">
-             You scored <span className="font-bold">{score}%</span>. 
+             You scored <span className="font-bold">{score}%</span>.
              {isReview && !testFailed && " You have unlocked the next block of lessons!"}
              {isReview && testFailed && " You need 80% to continue. Please review and try again."}
            </p>
-           <div className="flex justify-center gap-4">
+
+           {/* Answer Review Section */}
+           <div className="mt-8 text-left max-w-2xl mx-auto">
+             <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-center">
+               <i className="fas fa-clipboard-check mr-2 text-safetyBlue"></i> Answer Review
+             </h3>
+             <div className="space-y-4">
+               {lesson.quiz.map((q) => {
+                 const userAnswer = quizAnswers[q.id];
+                 const isCorrect = userAnswer === q.correctAnswer;
+                 return (
+                   <Card key={q.id} className={`${isCorrect ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500'}`}>
+                     <div className="flex items-start gap-3">
+                       <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isCorrect ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                         <i className={`fas ${isCorrect ? 'fa-check' : 'fa-times'}`}></i>
+                       </div>
+                       <div className="flex-1">
+                         <p className="font-bold text-gray-900 mb-2">{q.question}</p>
+                         <div className="space-y-1 text-sm">
+                           {q.options.map((opt, idx) => {
+                             const isUserChoice = userAnswer === idx;
+                             const isCorrectAnswer = q.correctAnswer === idx;
+                             let optClass = 'text-gray-600';
+                             if (isCorrectAnswer) optClass = 'text-green-600 font-semibold';
+                             if (isUserChoice && !isCorrect) optClass = 'text-red-600 font-semibold line-through';
+
+                             return (
+                               <div key={idx} className={`flex items-center gap-2 ${optClass}`}>
+                                 <span className="font-bold">{String.fromCharCode(65 + idx)}.</span>
+                                 <span>{opt}</span>
+                                 {isCorrectAnswer && <i className="fas fa-check-circle text-green-600"></i>}
+                                 {isUserChoice && !isCorrect && <i className="fas fa-times-circle text-red-600"></i>}
+                               </div>
+                             );
+                           })}
+                         </div>
+                       </div>
+                     </div>
+                   </Card>
+                 );
+               })}
+             </div>
+           </div>
+
+           <div className="flex justify-center gap-4 mt-8">
              <Button variant="outline" onClick={() => navigate('/')}>Back Home</Button>
-             
+
              {testFailed ? (
                <Button variant="danger" onClick={() => {
                    setStep('vocab');

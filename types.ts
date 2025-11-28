@@ -25,6 +25,17 @@ export interface LessonScenario {
   description: string;
   dangerLevel: 'Low' | 'Medium' | 'High' | 'Critical';
   imgPlaceholder?: string;
+  vietnamese?: string; // Vietnamese translation
+  titleVietnamese?: string; // Vietnamese title
+}
+
+export interface TopicCategory {
+  id: string;
+  name: string;
+  nameVietnamese: string;
+  icon: string;
+  color: string;
+  description: string;
 }
 
 export interface DailyLesson {
