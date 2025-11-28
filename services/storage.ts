@@ -120,7 +120,8 @@ export const markDayCompleteInDb = async (uid: string, currentData: UserProgress
 
   const userRef = doc(db, "users", uid);
   const isReviewDay = dayId % 5 === 0;
-  const passed = isReviewDay ? score >= 80 : true;
+  // IMPORTANT: All days require 80% to unlock next day, not just review days
+  const passed = score >= 80;
 
   const updates: any = {
     [`quizScores.${dayId}`]: score

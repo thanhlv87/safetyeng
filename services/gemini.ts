@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { DailyLesson } from '../types';
+import { DAY_CATEGORY_MAP, TOPIC_CATEGORIES } from './curriculum';
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
@@ -22,6 +23,19 @@ const TOPICS = [
   "Noise Control", "Heat Stress", "Environmental Spills", "Safety Culture", "FINAL CERTIFICATION EXAM"
 ];
 
+// Get category context for a day
+function getCategoryContext(day: number): string {
+  const categoryId = DAY_CATEGORY_MAP[day];
+  if (!categoryId) return "";
+
+  const category = TOPIC_CATEGORIES.find(c => c.id === categoryId);
+  if (!category) return "";
+
+  return `\n\nCategory Context: This lesson is part of the "${category.name}" (${category.nameVietnamese}) category.
+Focus: ${category.description}
+Make sure all vocabulary, dialogue, and scenarios are specifically related to ${category.name.toLowerCase()}.`;
+}
+
 export async function generateLessonWithAI(day: number): Promise<DailyLesson> {
   const topic = TOPICS[day - 1] || `Day ${day} Topic`;
   const isReviewDay = day % 5 === 0;
@@ -41,11 +55,13 @@ export async function generateLessonWithAI(day: number): Promise<DailyLesson> {
 }
 
 async function generateRegularLesson(day: number, topic: string): Promise<DailyLesson> {
+  const categoryContext = getCategoryContext(day);
+
   const prompt = `You are an expert English teacher for occupational safety training.
 Create a complete English lesson for beginners working in construction/manufacturing.
 
 Topic: "${topic}"
-Day: ${day}/60
+Day: ${day}/60${categoryContext}
 
 Generate a JSON response with this EXACT structure:
 {
@@ -84,7 +100,9 @@ Generate a JSON response with this EXACT structure:
   ],
   "scenario": {
     "title": "Missing PPE Situation",
+    "titleVietnamese": "Tình huống thiếu thiết bị bảo hộ",
     "description": "You see a colleague entering a work area without proper safety equipment. What should you do?",
+    "vietnamese": "Bạn thấy một đồng nghiệp đang vào khu vực làm việc mà không có thiết bị an toàn đầy đủ. Bạn nên làm gì?",
     "dangerLevel": "High"
   },
   "quiz": [
@@ -109,6 +127,7 @@ CRITICAL Requirements:
 - IPA pronunciation guides must be accurate
 - Dialogue should be natural and workplace-appropriate
 - Each dialogue line MUST have Vietnamese translation
+- Scenario MUST include both "titleVietnamese" and "vietnamese" fields
 - Scenario should present a realistic safety situation
 - Quiz questions MUST be UNIQUE and DIFFERENT from each other
 - Each question must test a DIFFERENT aspect of the topic
@@ -225,7 +244,9 @@ Generate a JSON response with:
   ],
   "scenario": {
     "title": "Checkpoint ${day / 5} Assessment",
+    "titleVietnamese": "Đánh giá điểm kiểm tra ${day / 5}",
     "description": "This is a comprehensive test of the safety concepts you've learned. You must score 80% or higher to proceed.",
+    "vietnamese": "Đây là bài kiểm tra toàn diện về các khái niệm an toàn bạn đã học. Bạn phải đạt 80% trở lên để tiếp tục.",
     "dangerLevel": "Critical"
   },
   "quiz": [

@@ -492,7 +492,8 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
     if (auth.currentUser) {
         const result = await markDayCompleteInDb(auth.currentUser.uid, user, dayId, finalScore);
         onUpdate(result.user);
-        if (lesson.isReviewDay && !result.passed) {
+        // Set testFailed if score < 80% (applies to ALL days, not just review days)
+        if (!result.passed) {
           setTestFailed(true);
         }
     }
@@ -639,7 +640,10 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
                 )}
               </div>
             )}
-            {isReview && <div className="p-3 bg-red-100 text-red-700 text-sm font-bold border border-red-300 rounded mt-4">WARNING: This is a graded test. You need 80% to pass.</div>}
+            <div className={`p-3 text-sm font-bold border rounded mt-4 ${isReview ? 'bg-red-100 text-red-700 border-red-300' : 'bg-blue-100 text-blue-700 border-blue-300'}`}>
+              <i className="fas fa-info-circle mr-2"></i>
+              {isReview ? 'CHECKPOINT TEST: You need 80% to unlock the next block.' : 'You need 80% to unlock the next day.'}
+            </div>
           </Card>
           <div className="flex justify-end mt-6">
             <Button onClick={() => setStep('quiz')}>{isReview ? 'Start Exam' : 'Start Quiz'} <i className="fas fa-arrow-right ml-2"></i></Button>
@@ -686,11 +690,11 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
            <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto text-4xl ${testFailed ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
              <i className={`fas ${testFailed ? 'fa-times' : 'fa-trophy'}`}></i>
            </div>
-           <h2 className="text-3xl font-bold text-gray-800">{testFailed ? 'Test Failed' : 'Day Completed!'}</h2>
+           <h2 className="text-3xl font-bold text-gray-800">{testFailed ? 'Not Passed' : 'Day Completed!'}</h2>
            <p className="text-gray-600">
              You scored <span className="font-bold">{score}%</span>.
-             {isReview && !testFailed && " You have unlocked the next block of lessons!"}
-             {isReview && testFailed && " You need 80% to continue. Please review and try again."}
+             {!testFailed && score >= 80 && " Great job! You can continue to the next day."}
+             {testFailed && " You need 80% to unlock the next day. Please review and try again."}
            </p>
 
            {/* Answer Review Section */}
