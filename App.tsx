@@ -833,7 +833,7 @@ const TopicDetailView: React.FC<{ user: UserProgress }> = ({ user }) => {
         <Button
           variant="outline"
           className="mb-4 !text-white !border-white hover:!bg-white/20"
-          onClick={() => navigate('/topics')}
+          onClick={() => navigate('/')}
         >
           <i className="fas fa-arrow-left mr-2"></i>
           Quay lại Chuyên đề
@@ -990,8 +990,8 @@ const CertificateView: React.FC<{ user: UserProgress }> = ({ user }) => {
 
 const BottomNav: React.FC = () => {
   const navItems = [
-    { id: Tab.HOME, icon: 'fa-home', label: 'Home', path: '/' },
-    { id: 'topics', icon: 'fa-layer-group', label: 'Topics', path: '/topics' },
+    { id: 'topics', icon: 'fa-layer-group', label: 'Topics', path: '/' },
+    { id: Tab.HOME, icon: 'fa-chart-line', label: 'Progress', path: '/dashboard' },
     { id: Tab.DICTIONARY, icon: 'fa-book', label: 'Dict', path: '/dictionary' },
     { id: Tab.PROFILE, icon: 'fa-user', label: 'Profile', path: '/certificate' },
   ];
@@ -1096,9 +1096,9 @@ const App: React.FC = () => {
 
         <main className="max-w-5xl mx-auto p-4 md:p-8">
           <Routes>
-            <Route path="/" element={<HomeView user={user} />} />
+            <Route path="/" element={<TopicsOverview user={user} />} />
+            <Route path="/dashboard" element={<HomeView user={user} />} />
             <Route path="/day/:id" element={<LessonView user={user} onUpdate={setUser} />} />
-            <Route path="/topics" element={<TopicsOverview user={user} />} />
             <Route path="/topics/:topicId" element={<TopicDetailView user={user} />} />
             <Route path="/dictionary" element={<DictionaryView />} />
             <Route path="/certificate" element={<CertificateView user={user} />} />
