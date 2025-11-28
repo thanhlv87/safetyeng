@@ -1458,12 +1458,14 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
         onTouchEnd={onTouchEnd}
       >
         <div
-          className={`relative w-full h-[350px] md:h-[450px] transition-all duration-300 transform-style-3d cursor-pointer ${
+          className={`relative w-full h-[350px] md:h-[450px] transform-style-3d cursor-pointer ${
             isFlipped ? 'rotate-y-180' : ''
           }`}
           style={{
             transform: cardTransform,
-            transition: swipeDirection ? 'transform 0.3s ease-out' : 'transform 0.6s'
+            transition: swipeDirection
+              ? 'transform 0.3s ease-out'
+              : 'transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1)'
           }}
           onClick={(e) => {
             // Only flip if not swiping
@@ -1473,7 +1475,7 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
           }}
         >
           {/* Front of card - Term */}
-          <div className={`absolute w-full h-full backface-hidden ${isFlipped ? 'hidden' : ''}`}>
+          <div className="absolute w-full h-full backface-hidden">
             <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyBlue to-blue-700 text-white shadow-2xl px-4">
               <div className="text-xs uppercase tracking-wider mb-2 opacity-80">
                 {currentCard.topicId && TOPIC_CATEGORIES.find(t => t.id === currentCard.topicId)?.name}
@@ -1498,7 +1500,7 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
           </div>
 
           {/* Back of card - Definition */}
-          <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${!isFlipped ? 'hidden' : ''}`}>
+          <div className="absolute w-full h-full backface-hidden rotate-y-180">
             <Card className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-safetyYellow to-yellow-300 shadow-2xl px-4">
               <div className="text-center px-4 md:px-6">
                 <h4 className="text-xl md:text-2xl font-bold text-safetyBlue mb-3 md:mb-4">Definition</h4>
