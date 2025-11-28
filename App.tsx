@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
-import { Tab, UserProgress, DailyLesson } from './types';
-import { DICTIONARY_TERMS } from './services/curriculum';
+import { Tab, UserProgress, DailyLesson, TopicCategory } from './types';
+import { DICTIONARY_TERMS, TOPIC_CATEGORIES, DAY_CATEGORY_MAP } from './services/curriculum';
 import { subscribeToAuth, loginWithEmail, logoutUser, saveUserProfile, markDayCompleteInDb, fetchLesson, refreshUserData } from './services/storage';
 import { generateCertificate } from './services/certificate';
 import { auth } from './services/firebase';
@@ -704,10 +704,209 @@ const LessonView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress) => 
   );
 };
 
+const TopicsOverview: React.FC<{ user: UserProgress }> = ({ user }) => {
+  const navigate = useNavigate();
+
+  // Calculate stats for each topic
+  const getTopicStats = (categoryId: string) => {
+    const daysList = Object.entries(DAY_CATEGORY_MAP)
+      .filter(([_, catId]) => catId === categoryId)
+      .map(([day, _]) => parseInt(day));
+
+    const completedDays = daysList.filter(day => user.completedDays.includes(day));
+    const scores = completedDays.map(day => user.quizScores[day] || 0);
+    const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+
+    return {
+      totalDays: daysList.length,
+      completedDays: completedDays.length,
+      avgScore,
+      daysList
+    };
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in pb-20">
+      <div className="bg-gradient-to-r from-safetyBlue to-blue-900 rounded-2xl p-6 text-white shadow-xl">
+        <h1 className="text-3xl font-bold mb-2">
+          <i className="fas fa-layer-group mr-3"></i>
+          Học theo Chuyên đề
+        </h1>
+        <p className="opacity-90">Chọn chuyên đề an toàn bạn muốn học</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {TOPIC_CATEGORIES.map((topic) => {
+          const stats = getTopicStats(topic.id);
+          const progressPercent = Math.round((stats.completedDays / stats.totalDays) * 100);
+
+          return (
+            <Card key={topic.id} className="border-t-4 hover:shadow-lg transition-shadow">
+              <div className={`w-16 h-16 rounded-full ${topic.color} flex items-center justify-center text-white text-2xl mb-4`}>
+                <i className={`fas ${topic.icon}`}></i>
+              </div>
+
+              <h3 className="text-xl font-bold text-gray-900 mb-1">{topic.name}</h3>
+              <p className="text-sm text-gray-600 mb-1">{topic.nameVietnamese}</p>
+              <p className="text-sm text-gray-500 mb-4">{topic.description}</p>
+
+              <div className="space-y-3 mb-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">
+                    <i className="fas fa-book-open mr-2"></i>
+                    Số bài học
+                  </span>
+                  <span className="font-bold text-gray-900">{stats.totalDays} ngày</span>
+                </div>
+
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">
+                    <i className="fas fa-check-circle mr-2"></i>
+                    Đã hoàn thành
+                  </span>
+                  <span className="font-bold text-green-600">{stats.completedDays}/{stats.totalDays}</span>
+                </div>
+
+                {stats.avgScore > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">
+                      <i className="fas fa-star mr-2"></i>
+                      Điểm trung bình
+                    </span>
+                    <span className="font-bold text-blue-600">{stats.avgScore}%</span>
+                  </div>
+                )}
+
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div
+                    className={`${topic.color} h-2 rounded-full transition-all duration-500`}
+                    style={{ width: `${progressPercent}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <Button
+                variant="primary"
+                className="w-full"
+                onClick={() => navigate(`/topics/${topic.id}`)}
+              >
+                <i className="fas fa-play mr-2"></i>
+                Bắt đầu học
+              </Button>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const TopicDetailView: React.FC<{ user: UserProgress }> = ({ user }) => {
+  const { topicId } = useParams();
+  const navigate = useNavigate();
+
+  const topic = TOPIC_CATEGORIES.find(t => t.id === topicId);
+
+  if (!topic) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-gray-500">Không tìm thấy chuyên đề</p>
+        <Button variant="outline" onClick={() => navigate('/topics')} className="mt-4">
+          Quay lại
+        </Button>
+      </div>
+    );
+  }
+
+  const daysList = Object.entries(DAY_CATEGORY_MAP)
+    .filter(([_, catId]) => catId === topicId)
+    .map(([day, _]) => parseInt(day))
+    .sort((a, b) => a - b);
+
+  const completedCount = daysList.filter(d => user.completedDays.includes(d)).length;
+  const totalScore = daysList.reduce((sum, d) => sum + (user.quizScores[d] || 0), 0);
+  const avgScore = completedCount > 0 ? Math.round(totalScore / completedCount) : 0;
+
+  return (
+    <div className="space-y-6 animate-fade-in pb-20">
+      <div className={`${topic.color} bg-gradient-to-r rounded-2xl p-6 text-white shadow-xl`}>
+        <Button
+          variant="outline"
+          className="mb-4 !text-white !border-white hover:!bg-white/20"
+          onClick={() => navigate('/topics')}
+        >
+          <i className="fas fa-arrow-left mr-2"></i>
+          Quay lại Chuyên đề
+        </Button>
+
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-4xl">
+            <i className={`fas ${topic.icon}`}></i>
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold">{topic.name}</h1>
+            <p className="text-lg opacity-90">{topic.nameVietnamese}</p>
+          </div>
+        </div>
+
+        <p className="opacity-90 mb-4">{topic.description}</p>
+
+        <div className="grid grid-cols-3 gap-4 bg-white/10 rounded-lg p-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold">{daysList.length}</div>
+            <div className="text-sm opacity-80">Tổng bài học</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold">{completedCount}</div>
+            <div className="text-sm opacity-80">Đã hoàn thành</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold">{avgScore}%</div>
+            <div className="text-sm opacity-80">Điểm TB</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {daysList.map(dayNum => {
+          const isCompleted = user.completedDays.includes(dayNum);
+          const isLocked = dayNum > user.currentDay;
+          const isCurrent = dayNum === user.currentDay;
+          const score = user.quizScores[dayNum];
+
+          let bgClass = "bg-gray-100 text-gray-400"; // Locked
+          if (isCompleted) bgClass = "bg-green-100 text-green-700 border-2 border-green-300";
+          if (isCurrent) bgClass = "bg-safetyYellow text-safetyBlue font-bold shadow-md ring-2 ring-safetyBlue";
+          if (!isLocked && !isCompleted && !isCurrent) bgClass = "bg-white border-2 border-gray-300 text-gray-700 hover:bg-blue-50";
+
+          return (
+            <button
+              key={dayNum}
+              disabled={isLocked}
+              onClick={() => navigate(`/day/${dayNum}`)}
+              className={`p-4 rounded-lg flex flex-col items-center justify-center transition-all ${bgClass}`}
+            >
+              <div className="text-2xl font-bold mb-1">
+                {isCompleted ? <i className="fas fa-check-circle"></i> : dayNum}
+              </div>
+              <div className="text-xs">Day {dayNum}</div>
+              {score !== undefined && (
+                <div className="text-xs font-semibold mt-1">
+                  {score}%
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const DictionaryView: React.FC = () => {
   const [search, setSearch] = useState('');
-  const filtered = DICTIONARY_TERMS.filter(t => 
-    t.term.toLowerCase().includes(search.toLowerCase()) || 
+  const filtered = DICTIONARY_TERMS.filter(t =>
+    t.term.toLowerCase().includes(search.toLowerCase()) ||
     t.def.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -715,9 +914,9 @@ const DictionaryView: React.FC = () => {
     <div className="pb-20">
       <h1 className="text-2xl font-bold text-safetyBlue mb-6">Occupational Safety Dictionary</h1>
       <div className="relative mb-6">
-        <input 
-          type="text" 
-          placeholder="Search for OSHA terms, hazards..." 
+        <input
+          type="text"
+          placeholder="Search for OSHA terms, hazards..."
           className="w-full p-4 pl-12 rounded-xl border border-gray-300 shadow-sm focus:ring-2 focus:ring-safetyBlue focus:outline-none"
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -792,6 +991,7 @@ const CertificateView: React.FC<{ user: UserProgress }> = ({ user }) => {
 const BottomNav: React.FC = () => {
   const navItems = [
     { id: Tab.HOME, icon: 'fa-home', label: 'Home', path: '/' },
+    { id: 'topics', icon: 'fa-layer-group', label: 'Topics', path: '/topics' },
     { id: Tab.DICTIONARY, icon: 'fa-book', label: 'Dict', path: '/dictionary' },
     { id: Tab.PROFILE, icon: 'fa-user', label: 'Profile', path: '/certificate' },
   ];
@@ -898,6 +1098,8 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<HomeView user={user} />} />
             <Route path="/day/:id" element={<LessonView user={user} onUpdate={setUser} />} />
+            <Route path="/topics" element={<TopicsOverview user={user} />} />
+            <Route path="/topics/:topicId" element={<TopicDetailView user={user} />} />
             <Route path="/dictionary" element={<DictionaryView />} />
             <Route path="/certificate" element={<CertificateView user={user} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
