@@ -1452,7 +1452,7 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
 
       {/* Flashcard - Responsive height */}
       <div
-        className="relative min-h-[350px] md:min-h-[450px] perspective-1000 touch-none"
+        className="relative min-h-[350px] md:min-h-[450px] perspective-1000"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -1465,7 +1465,12 @@ const FlashcardView: React.FC<{ user: UserProgress }> = ({ user }) => {
             transform: cardTransform,
             transition: swipeDirection ? 'transform 0.3s ease-out' : 'transform 0.6s'
           }}
-          onClick={() => setIsFlipped(!isFlipped)}
+          onClick={(e) => {
+            // Only flip if not swiping
+            if (!swipeDirection) {
+              setIsFlipped(!isFlipped);
+            }
+          }}
         >
           {/* Front of card - Term */}
           <div className={`absolute w-full h-full backface-hidden ${isFlipped ? 'hidden' : ''}`}>
