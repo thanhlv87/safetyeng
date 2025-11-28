@@ -981,50 +981,291 @@ const TopicDetailView: React.FC<{ user: UserProgress; onUpdate: (u: UserProgress
 
 const DictionaryView: React.FC = () => {
   const [search, setSearch] = useState('');
-  const filtered = DICTIONARY_TERMS.filter(t =>
-    t.term.toLowerCase().includes(search.toLowerCase()) ||
-    t.def.toLowerCase().includes(search.toLowerCase())
-  );
+  const [selectedTopic, setSelectedTopic] = useState<string | 'all'>('all');
+  const [selectedLevel, setSelectedLevel] = useState<string | 'all'>('all');
+  const [dictionaryTerms, setDictionaryTerms] = useState(DICTIONARY_TERMS);
+  const [generatingForTopic, setGeneratingForTopic] = useState<string | null>(null);
+  const [showVietnamese, setShowVietnamese] = useState<Record<number, boolean>>({});
+  const [loadingVocab, setLoadingVocab] = useState(true);
+
+  // Load vocabulary from Firestore on mount
+  useEffect(() => {
+    const loadVocabulary = async () => {
+      setLoadingVocab(true);
+      try {
+        const { loadAllVocabulary } = await import('./services/storage');
+        const savedTerms = await loadAllVocabulary();
+
+        // Combine default terms with saved terms (avoid duplicates)
+        const existingTerms = new Set(DICTIONARY_TERMS.map(t => t.term.toLowerCase()));
+        const uniqueSavedTerms = savedTerms.filter(
+          t => !existingTerms.has(t.term.toLowerCase())
+        );
+
+        setDictionaryTerms([...DICTIONARY_TERMS, ...uniqueSavedTerms]);
+      } catch (error) {
+        console.error("Failed to load saved vocabulary:", error);
+      } finally {
+        setLoadingVocab(false);
+      }
+    };
+
+    loadVocabulary();
+  }, []);
+
+  // Filter terms
+  const filtered = dictionaryTerms.filter(t => {
+    const matchesSearch = t.term.toLowerCase().includes(search.toLowerCase()) ||
+      t.def.toLowerCase().includes(search.toLowerCase()) ||
+      (t.vietnamese?.toLowerCase().includes(search.toLowerCase()) ?? false);
+    const matchesTopic = selectedTopic === 'all' || t.topicId === selectedTopic;
+    const matchesLevel = selectedLevel === 'all' || t.level === selectedLevel;
+    return matchesSearch && matchesTopic && matchesLevel;
+  });
+
+  // Count terms per topic
+  const topicCounts = TOPIC_CATEGORIES.map(topic => ({
+    ...topic,
+    count: dictionaryTerms.filter(t => t.topicId === topic.id).length
+  }));
+
+  // Handle AI generation
+  const handleGenerateMore = async (topicId: string) => {
+    setGeneratingForTopic(topicId);
+    try {
+      const existingTermsForTopic = dictionaryTerms
+        .filter(t => t.topicId === topicId)
+        .map(t => t.term);
+
+      const { generateVocabularyWithAI } = await import('./services/gemini');
+      const { saveGeneratedVocabulary } = await import('./services/storage');
+
+      const newTerms = await generateVocabularyWithAI(topicId, 20, existingTermsForTopic);
+
+      // Save to Firestore
+      await saveGeneratedVocabulary(topicId, newTerms);
+
+      // Update local state
+      setDictionaryTerms(prev => [...prev, ...newTerms]);
+
+      const topicName = TOPIC_CATEGORIES.find(t => t.id === topicId)?.name;
+      alert(`✅ Generated and saved ${newTerms.length} new terms for ${topicName}!`);
+    } catch (error) {
+      console.error("Failed to generate vocabulary:", error);
+      alert("❌ Failed to generate new terms. Please try again.");
+    } finally {
+      setGeneratingForTopic(null);
+    }
+  };
+
+  if (loadingVocab) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-4xl text-safetyBlue mb-4"></i>
+          <p className="text-gray-600">Loading dictionary...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20">
-      <h1 className="text-2xl font-bold text-safetyBlue mb-6">Occupational Safety Dictionary</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-safetyBlue mb-2">Safety Dictionary</h1>
+        <p className="text-gray-600">Learn essential safety vocabulary by topic</p>
+      </div>
+
+      {/* Search Bar */}
       <div className="relative mb-6">
         <input
           type="text"
-          placeholder="Search for OSHA terms, hazards..."
+          placeholder="Search terms, definitions, Vietnamese..."
           className="w-full p-4 pl-12 rounded-xl border border-gray-300 shadow-sm focus:ring-2 focus:ring-safetyBlue focus:outline-none"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
       </div>
-      <div className="grid gap-4">
-        {filtered.map((item, idx) => (
-          <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-safetyBlue">
-            <div className="flex justify-between items-start">
-              <div>
-                 <h3 className="font-bold text-lg text-gray-900">{item.term}</h3>
-                 <p className="text-gray-600">{item.def}</p>
-              </div>
-              <AudioButton text={item.term} />
-            </div>
+
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Topic Filter */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <i className="fas fa-filter mr-2"></i>Filter by Topic
+          </label>
+          <select
+            value={selectedTopic}
+            onChange={e => setSelectedTopic(e.target.value)}
+            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-safetyBlue focus:outline-none"
+          >
+            <option value="all">All Topics ({dictionaryTerms.length} terms)</option>
+            {topicCounts.map(topic => (
+              <option key={topic.id} value={topic.id}>
+                {topic.name} ({topic.count} terms)
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Level Filter */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <i className="fas fa-layer-group mr-2"></i>Filter by Level
+          </label>
+          <select
+            value={selectedLevel}
+            onChange={e => setSelectedLevel(e.target.value)}
+            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-safetyBlue focus:outline-none"
+          >
+            <option value="all">All Levels</option>
+            <option value="basic">Basic</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Topic Cards with AI Generation */}
+      {selectedTopic === 'all' && !search && (
+        <div className="mb-8">
+          <h2 className="text-lg font-bold text-gray-800 mb-4">Generate More Vocabulary</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {topicCounts.map(topic => (
+              <Card key={topic.id} className="border-t-4" style={{ borderTopColor: topic.color.replace('bg-', '#') }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-12 h-12 rounded-full ${topic.color} flex items-center justify-center text-white text-xl`}>
+                    <i className={`fas ${topic.icon}`}></i>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">{topic.name}</h3>
+                    <p className="text-sm text-gray-500">{topic.count} terms</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full text-sm"
+                  onClick={() => handleGenerateMore(topic.id)}
+                  disabled={generatingForTopic === topic.id}
+                >
+                  {generatingForTopic === topic.id ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-magic mr-2"></i>
+                      Generate +20 Words
+                    </>
+                  )}
+                </Button>
+              </Card>
+            ))}
           </div>
-        ))}
-        {filtered.length === 0 && <p className="text-center text-gray-500 mt-10">No terms found.</p>}
+        </div>
+      )}
+
+      {/* Results Count */}
+      <div className="mb-4 text-sm text-gray-600">
+        Showing {filtered.length} {filtered.length === 1 ? 'term' : 'terms'}
+      </div>
+
+      {/* Dictionary Terms */}
+      <div className="grid gap-4">
+        {filtered.map((item, idx) => {
+          const topic = TOPIC_CATEGORIES.find(t => t.id === item.topicId);
+          const levelColors = {
+            basic: 'bg-green-100 text-green-700',
+            intermediate: 'bg-yellow-100 text-yellow-700',
+            advanced: 'bg-red-100 text-red-700'
+          };
+
+          return (
+            <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-safetyBlue hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-bold text-lg text-gray-900">{item.term}</h3>
+                    {item.ipa && <span className="text-gray-400 text-sm font-mono">{item.ipa}</span>}
+                  </div>
+
+                  <div className="flex gap-2 mb-2">
+                    {topic && (
+                      <span className={`text-xs px-2 py-1 rounded-full ${topic.color} text-white`}>
+                        <i className={`fas ${topic.icon} mr-1`}></i>
+                        {topic.name}
+                      </span>
+                    )}
+                    {item.level && (
+                      <span className={`text-xs px-2 py-1 rounded-full ${levelColors[item.level]}`}>
+                        {item.level}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-gray-700 mb-2">{item.def}</p>
+
+                  {item.vietnamese && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setShowVietnamese(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                        className="text-xs text-gray-500 hover:text-safetyBlue flex items-center gap-1"
+                      >
+                        <i className="fas fa-language"></i>
+                        {showVietnamese[idx] ? 'Ẩn bản dịch' : 'Hiện bản dịch'}
+                      </button>
+                      {showVietnamese[idx] && (
+                        <p className="text-sm text-green-700 bg-green-50 p-2 rounded mt-1 border border-green-200">
+                          🇻🇳 {item.vietnamese}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <AudioButton text={item.term} />
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="text-center py-10">
+            <i className="fas fa-search text-4xl text-gray-300 mb-4"></i>
+            <p className="text-gray-500">No terms found. Try different filters.</p>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 const CertificateView: React.FC<{ user: UserProgress }> = ({ user }) => {
-  const percent = Math.round((user.completedDays.length / 60) * 100);
-  
+  // Calculate total progress across ALL topics
+  const totalPossibleDays = TOPIC_CATEGORIES.length * 60; // 6 topics × 60 days = 360 days
+  const totalCompletedDays = Object.values(user.topics).reduce((sum, topic) => sum + topic.completedDays.length, 0);
+  const overallPercent = Math.round((totalCompletedDays / totalPossibleDays) * 100);
+
+  // Calculate per-topic stats
+  const topicStats = TOPIC_CATEGORIES.map(topic => {
+    const progress = user.topics[topic.id];
+    const completed = progress?.completedDays.length || 0;
+    const percent = Math.round((completed / 60) * 100);
+    return {
+      ...topic,
+      completed,
+      percent,
+      isComplete: completed === 60
+    };
+  });
+
+  const completedTopics = topicStats.filter(t => t.isComplete).length;
+
   return (
-    <div className="text-center py-10 max-w-lg mx-auto">
+    <div className="text-center py-10 max-w-2xl mx-auto pb-20">
       <h1 className="text-3xl font-bold text-safetyBlue mb-2">Certificate of Completion</h1>
-      <p className="text-gray-600 mb-8">English for Occupational Safety</p>
-      
+      <p className="text-gray-600 mb-8">English for Occupational Safety - Multi-Topic Program</p>
+
       <Card className="mb-8 border-4 border-double border-safetyYellow bg-slate-50 relative overflow-hidden">
          <div className="absolute inset-0 flex items-center justify-center opacity-5">
             <i className="fas fa-hard-hat text-9xl"></i>
@@ -1033,30 +1274,75 @@ const CertificateView: React.FC<{ user: UserProgress }> = ({ user }) => {
             <i className="fas fa-award text-6xl text-safetyBlue mb-4"></i>
             <h2 className="text-2xl font-bold">{user.name}</h2>
             <p className="text-gray-500">{user.jobTitle} - {user.company}</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 my-4">
-               <div className="bg-green-500 h-2 rounded-full" style={{width: `${percent}%`}}></div>
+
+            <div className="mt-6 grid grid-cols-3 gap-4 mb-4">
+              <div className="bg-white p-3 rounded-lg shadow-sm">
+                <div className="text-2xl font-bold text-safetyBlue">{completedTopics}/6</div>
+                <div className="text-xs text-gray-500">Topics Complete</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg shadow-sm">
+                <div className="text-2xl font-bold text-green-600">{totalCompletedDays}</div>
+                <div className="text-xs text-gray-500">Total Days</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg shadow-sm">
+                <div className="text-2xl font-bold text-purple-600">{overallPercent}%</div>
+                <div className="text-xs text-gray-500">Overall</div>
+              </div>
             </div>
-            <p className="text-sm text-gray-500 mb-4">{percent}% Completed</p>
-            
-            {percent < 100 ? (
+
+            <div className="w-full bg-gray-200 rounded-full h-3 my-4">
+               <div className="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all" style={{width: `${overallPercent}%`}}></div>
+            </div>
+
+            {completedTopics < 6 ? (
               <div className="p-4 bg-yellow-100 text-yellow-800 rounded mb-4 text-sm text-left">
-                <i className="fas fa-lock mr-2"></i> 
-                <strong>Requirement:</strong> Complete all 60 days including the Final Certification Exam to unlock the official PDF download.
+                <i className="fas fa-lock mr-2"></i>
+                <strong>Requirement:</strong> Complete all 60 days in at least one topic to unlock certificate download.
               </div>
             ) : (
               <div className="p-4 bg-green-100 text-green-800 rounded mb-4 text-sm">
-                <i className="fas fa-check-circle mr-2"></i> Certificate Ready!
+                <i className="fas fa-check-circle mr-2"></i> Congratulations! Certificate Ready!
               </div>
             )}
          </div>
       </Card>
 
-      <Button 
-        onClick={() => generateCertificate(user)} 
-        disabled={percent < 100}
+      {/* Topic Progress Breakdown */}
+      <div className="mb-8 text-left">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">Topic Progress</h3>
+        <div className="space-y-3">
+          {topicStats.map(topic => (
+            <div key={topic.id} className="bg-white p-4 rounded-lg shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full ${topic.color} flex items-center justify-center text-white`}>
+                    <i className={`fas ${topic.icon}`}></i>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-800">{topic.name}</div>
+                    <div className="text-xs text-gray-500">{topic.completed}/60 days</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-bold text-gray-800">{topic.percent}%</div>
+                  {topic.isComplete && <i className="fas fa-check-circle text-green-600"></i>}
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className={`${topic.color} h-2 rounded-full transition-all`} style={{width: `${topic.percent}%`}}></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Button
+        onClick={() => generateCertificate(user)}
+        disabled={completedTopics === 0}
         className="w-full justify-center py-3 text-lg"
       >
-        <i className="fas fa-file-pdf mr-2"></i> Download PDF
+        <i className="fas fa-file-pdf mr-2"></i>
+        {completedTopics === 0 ? 'Complete a topic to unlock' : 'Download PDF Certificate'}
       </Button>
     </div>
   );

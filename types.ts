@@ -68,6 +68,15 @@ export interface UserProgress {
   topics: Record<string, TopicProgress>; // topicId -> progress for that topic
 }
 
+export interface DictionaryTerm {
+  term: string;
+  def: string;
+  ipa?: string;
+  vietnamese?: string;
+  topicId?: string; // Which topic category this belongs to
+  level?: 'basic' | 'intermediate' | 'advanced';
+}
+
 export enum Tab {
   HOME = 'HOME',
   LESSON = 'LESSON',

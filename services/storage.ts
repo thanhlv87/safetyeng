@@ -1,7 +1,7 @@
-import { UserProgress, DailyLesson, TopicProgress } from '../types';
+import { UserProgress, DailyLesson, TopicProgress, DictionaryTerm } from '../types';
 import { auth, db } from './firebase';
 import { signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection } from "firebase/firestore";
 import { getLessonForDay as generateLessonLocally } from './curriculum';
 import { generateLessonWithAI } from './gemini';
 
@@ -240,5 +240,76 @@ export const fetchLesson = async (topicId: string, dayId: number, forceRegenerat
   } catch (err) {
     console.warn("AI generation failed, using fallback", err);
     return generateLessonLocally(dayId);
+  }
+};
+
+// --- Dictionary Vocabulary Management ---
+
+// Save generated vocabulary terms to Firestore
+export const saveGeneratedVocabulary = async (topicId: string, terms: DictionaryTerm[]): Promise<void> => {
+  try {
+    const vocabRef = doc(db, "vocabulary", topicId);
+    const vocabSnap = await getDoc(vocabRef);
+
+    if (vocabSnap.exists()) {
+      // Append to existing terms
+      const existingData = vocabSnap.data();
+      const existingTerms = existingData.terms || [];
+      const combinedTerms = [...existingTerms, ...terms];
+
+      await updateDoc(vocabRef, {
+        terms: combinedTerms,
+        lastUpdated: new Date().toISOString()
+      });
+    } else {
+      // Create new document
+      await setDoc(vocabRef, {
+        topicId,
+        terms,
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
+      });
+    }
+
+    console.log(`✅ Saved ${terms.length} vocabulary terms for ${topicId}`);
+  } catch (error) {
+    console.error("Failed to save vocabulary:", error);
+    throw error;
+  }
+};
+
+// Load all generated vocabulary for a topic from Firestore
+export const loadGeneratedVocabulary = async (topicId: string): Promise<DictionaryTerm[]> => {
+  try {
+    const vocabRef = doc(db, "vocabulary", topicId);
+    const vocabSnap = await getDoc(vocabRef);
+
+    if (vocabSnap.exists()) {
+      const data = vocabSnap.data();
+      return data.terms || [];
+    }
+
+    return [];
+  } catch (error) {
+    console.error("Failed to load vocabulary:", error);
+    return [];
+  }
+};
+
+// Load all vocabulary across all topics
+export const loadAllVocabulary = async (): Promise<DictionaryTerm[]> => {
+  try {
+    const topicIds = ['general-safety', 'chemicals', 'electrical', 'height-work', 'equipment', 'emergency'];
+    const allTerms: DictionaryTerm[] = [];
+
+    for (const topicId of topicIds) {
+      const terms = await loadGeneratedVocabulary(topicId);
+      allTerms.push(...terms);
+    }
+
+    return allTerms;
+  } catch (error) {
+    console.error("Failed to load all vocabulary:", error);
+    return [];
   }
 };

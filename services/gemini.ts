@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { DailyLesson } from '../types';
+import { DailyLesson, DictionaryTerm } from '../types';
 import { TOPIC_CATEGORIES } from './curriculum';
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
@@ -338,4 +338,76 @@ function generateFallbackLesson(topicId: string, category: any, day: number, isR
       }
     ]
   };
+}
+
+// Generate additional vocabulary terms for a specific topic using AI
+export async function generateVocabularyWithAI(topicId: string, count: number = 20, existingTerms: string[] = []): Promise<DictionaryTerm[]> {
+  const category = TOPIC_CATEGORIES.find(c => c.id === topicId);
+  if (!category) {
+    throw new Error(`Topic ${topicId} not found`);
+  }
+
+  console.log(`🤖 Generating ${count} new vocabulary terms for ${category.name}`);
+
+  const prompt = `You are an expert English teacher specializing in occupational safety training.
+Generate ${count} NEW vocabulary terms for the topic: "${category.name}" (${category.nameVietnamese})
+Category Focus: ${category.description}
+
+IMPORTANT Requirements:
+- ALL terms must be directly related to ${category.name.toLowerCase()}
+- Terms should be practical and commonly used in workplace safety contexts
+- Avoid these existing terms: ${existingTerms.join(', ')}
+- Mix difficulty levels: 40% basic, 40% intermediate, 20% advanced
+- Include accurate IPA pronunciation
+- Provide natural Vietnamese translations
+- Make definitions clear and beginner-friendly
+
+Generate a JSON array with this EXACT structure:
+[
+  {
+    "term": "Safety Harness",
+    "def": "Belt and straps worn to prevent falls from heights",
+    "ipa": "/ˈseɪf.ti ˈhɑːr.nəs/",
+    "vietnamese": "Dây đai an toàn",
+    "level": "basic"
+  },
+  {
+    "term": "Confined Space",
+    "def": "Enclosed area with limited entry/exit and poor ventilation",
+    "ipa": "/kənˈfaɪnd speɪs/",
+    "vietnamese": "Không gian hạn chế",
+    "level": "intermediate"
+  }
+  // ... generate ${count} unique terms total
+]
+
+CRITICAL:
+- Each term must be UNIQUE and DIFFERENT
+- Definitions should be concise (10-20 words)
+- IPA must be accurate
+- Vietnamese translations must be natural and correct
+- Level should be: "basic", "intermediate", or "advanced"
+- Focus on real-world workplace vocabulary
+
+Return ONLY valid JSON array, no markdown formatting.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text = response.text();
+
+    // Clean response (remove markdown code blocks if present)
+    const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    const aiTerms = JSON.parse(cleanText);
+
+    // Add topicId to each term
+    return aiTerms.map((term: any) => ({
+      ...term,
+      topicId: topicId
+    }));
+  } catch (error) {
+    console.error("AI vocabulary generation failed:", error);
+    throw error;
+  }
 }
